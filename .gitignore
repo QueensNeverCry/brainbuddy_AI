@@ -45,7 +45,7 @@ logs/
 *.pt
 *.pth
 checkpoints/
-models/
+
 
 # ▶ Environment & secrets
 *.env
