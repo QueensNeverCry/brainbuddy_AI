@@ -1,0 +1,59 @@
+# ▶ Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.log
+*.tmp
+
+# ▶ Virtual Environments
+venv/
+.env/
+
+# ▶ Jupyter/IPython
+.ipynb_checkpoints
+
+# ▶ VSCode settings
+.vscode/
+
+# ▶ OS
+.DS_Store
+Thumbs.db
+
+# ▶ Data & media
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.wav
+*.mp3
+data/
+output/
+results/
+logs/
+
+# ▶ PyTorch & Checkpoints
+*.pt
+*.pth
+checkpoints/
+models/
+
+# ▶ Environment & secrets
+*.env
+.env.*
+secrets/
+credentials.json
+
+# ▶ Others (optional)
+*.bak
+*.swp
+*.~lock.*
