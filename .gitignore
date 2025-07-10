@@ -40,6 +40,8 @@ data/
 output/
 results/
 logs/
+DataSet/
+extracted_frames/
 
 # ▶ PyTorch & Checkpoints
 *.pt
