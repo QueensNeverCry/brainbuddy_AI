@@ -10,6 +10,7 @@ T = 20  # 프레임 시퀀스 길이
 FRAME_INTERVAL = 6
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+# 레이블 가져오는 코드 작성하기 필요함
 # 학습 레이블 수동 설정 (예: 집중 상태)
 label = torch.tensor([0.0]).unsqueeze(0).to(device)  # (1, 1)
 

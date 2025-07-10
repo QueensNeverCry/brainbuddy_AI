@@ -1,7 +1,6 @@
 import os
 import cv2
 from tqdm import tqdm
-
 def extract_frames_from_video(video_path, output_dir, frame_interval):# 몇 프레임마다 한 장씩 저장할지 (기본값: 6)
     """
     하나의 .avi 영상에서 지정된 간격으로 프레임을 추출하여 저장
