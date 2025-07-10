@@ -1,8 +1,7 @@
 from detection.face_detector import detect_faces
 from models.feature_extractor import extract_cnn_features
-from models.concent_model import SimpleLSTM
+from models.concent_model import EngagementModel
 from utils.visualization import show_image
-import time
 import torch
 import torch.nn as nn
 import cv2
@@ -14,10 +13,12 @@ FPS = 30
 NO_FACE_THRESHOLD = FPS * 10
 OUTPUT_INTERVAL = FPS * 2 
 
-model = SimpleLSTM()
-loss_fn = nn.BCELoss()
-label = torch.tensor([0.0]).unsqueeze(1)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+model = EngagementModel().to(device)
 cap = cv2.VideoCapture(0) # 0번 카메라 열기. 기본 카메라
+# loss_fn = nn.BCELoss()
+# label = torch.tensor([0.0]).unsqueeze(1)
 
 t_faces = []
 count = 0
@@ -42,11 +43,13 @@ if cap.isOpened():
 
                 # 시퀀스가 T개 모이면 모델에 넣어 예측
                 if len(t_faces) >= T:
-                    feature_sequence = extract_cnn_features(t_faces)
-                    output = model(feature_sequence)
-                    print(f"▶ 집중도: {output.item():.4f}")
-                    
+                    feature_sequence = extract_cnn_features(t_faces, device)
+                    input_seq = feature_sequence.unsqueeze(0).to(device)  # (1, T, 1280)
+                    with torch.no_grad():  # 추론에서는 gradient 필요 없음
+                        output = model(input_seq)  # (1, 1)
+                    print(f"▶ 집중도: {output.item():.4f}")            
                     t_faces.clear()# 리스트 초기화
+                    frames_without_face=0
             else:
                 frames_without_face += FRAME_INTERVAL #얼굴이 검출되지 않을 때마다 증가
                 if frames_without_face >= NO_FACE_THRESHOLD and frames_without_face % OUTPUT_INTERVAL == 0:
