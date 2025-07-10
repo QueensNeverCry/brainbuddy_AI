@@ -10,7 +10,7 @@ def load_binary_labels(csv_path,save_path):
 
     # 결측값 제거 (필요 시)
     df = df.dropna(subset=["Boredom", "Engagement"])
-
+    df['ClipID'] = df['ClipID'].str.replace('.avi', '', regex=False)
     # 이진 라벨 생성
     df["binary_label"] = (df["Engagement"] - df["Boredom"] >= 2).astype(int)
 
