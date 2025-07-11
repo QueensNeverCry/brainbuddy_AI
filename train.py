@@ -1,51 +1,46 @@
-import os
-import csv
-import pandas as pd
-from tqdm import tqdm
+import torch.nn as nn
+import torch
+from torch.utils.data import DataLoader
+from models.concent_model import EngagementModel
+import pickle
+from videoframe_dataset import VideoEngagementDataset
 
-def load_labels(label_csv_path):
-    df = pd.read_csv(label_csv_path)
-    label_dict = dict(zip(df['ClipID'].astype(str), df['binary_label']))
-    return label_dict
+# [(영상경로, 라벨)] 리스트 가져오기
+with open("./preprocessed/dataset_link.pkl", "rb") as f:
+    dataset_link = pickle.load(f)
 
-def get_labeled_video_paths(train_txt_path, video_root, label_csv_path):
-    # 라벨 불러오기
-    label_dict = load_labels(label_csv_path)
+# 설정
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # 결과 저장 리스트
-    frames_label_pairs = []
 
-    # 파일 리스트 읽기
-    with open(train_txt_path, 'r') as f:
-        filenames = [line.strip() for line in f.readlines()]
+# dataset_link는 [('extracted_frames/110006/1100062016', 1), ...] 형태라고 가정
+dataset = VideoEngagementDataset(dataset_link, T=10, device=device)
+dataloader = DataLoader(dataset, batch_size=4, shuffle=True, num_workers=2)
 
-    for filename in tqdm(filenames, desc="영상 처리 중...뿅"):
-        file_id = os.path.splitext(filename)[0]  # "1100062016"
-        user_id = file_id[:6]  # 사용자 ID
-        file_folder = file_id  # 폴더 이름
-        frame_path = os.path.join(video_root, user_id, file_folder)
 
-        if not os.path.exists(frame_path):
-            print(f"❌ 프레임 없음: {frame_path}")
-            continue
+# 모델, 손실 함수, 옵티마이저
+model = EngagementModel().to(device)
+criterion = nn.BCEWithLogitsLoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 
-        # 라벨 가져오기
-        label = label_dict.get(file_id)
-        if label is None:
-            print(f"❓ 라벨 없음: {file_id}")
-            continue
+# 학습 루프
+num_epochs = 5
 
-        # (경로, 라벨) 저장
-        frames_label_pairs.append((frame_path, label))
+for epoch in range(num_epochs):
+    model.train()
+    running_loss = 0.0
 
-    return frames_label_pairs
+    for features, labels in dataloader:
+        features = features.to(device)      # (batch_size, T, feature_dim)
+        labels = labels.to(device)          # (batch_size, 1)
 
-if __name__ == "__main__":
-    train_txt_path = "Train.txt"
-    video_root = "extracted_frames"
-    label_csv_path = "TrainLabels.csv"
+        optimizer.zero_grad()
+        outputs = model(features)           # (batch_size, 1)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
 
-    frames_label_pairs = get_labeled_video_paths(train_txt_path, video_root, label_csv_path)
+        running_loss += loss.item()
 
-    # 예시: 일부 확인
-    print("예시 출력:", frames_label_pairs[:5])
+    avg_loss = running_loss / len(dataloader)
+    print(f"Epoch [{epoch+1}/{num_epochs}] Loss: {avg_loss:.4f}")
