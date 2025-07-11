@@ -54,7 +54,7 @@ def match_train_and_label(train_txt_path, data_root,label_csv_path1,label_csv_pa
 
 if __name__ == "__main__":
     train_txt_path = "../DataSet/Train.txt"
-    data_root = "C:/GitHub/brainbuddy/extracted_frames"
+    data_root = "C:/KSEB/brainbuddy_AI/extracted_frames"
     label_csv_path1 = "./pre_labels/pre_TrainLabels.csv"
     label_csv_path2 = "./pre_labels/pre_AllLabels.csv"
     dataset_link = match_train_and_label(train_txt_path, data_root, label_csv_path1,label_csv_path2)
