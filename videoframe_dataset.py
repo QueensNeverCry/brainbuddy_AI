@@ -6,6 +6,7 @@ import torch
 import os
 import glob
 import mediapipe as mp
+import time
 
 class VideoEngagementDataset(Dataset):
     def __init__(self, dataset_link, T=10, device=None):
@@ -43,9 +44,9 @@ class VideoEngagementDataset(Dataset):
             raise ValueError(f"{frame_folder} 내 프레임 이미지 수가 {self.T}장보다 적습니다.")
         
         img_paths = [os.path.join(frame_folder, f) for f in img_files[:self.T]]
-        
+        start =time.time() #시간 측정용
         faces = []
-        failed_files = []  # 문제 발생한 파일들 기록
+        
         last_valid_face = None
         for img_path in img_paths:
             frame = cv2.imread(img_path)
@@ -66,17 +67,16 @@ class VideoEngagementDataset(Dataset):
                     # 처음부터 얼굴을 감지할 수 없는 경우는 오류 발생
                     cv2.imwrite("debug_failed_frame.jpg", frame)
                     print(f"{img_path} 에서 얼굴 감지 실패. debug_failed_frame.jpg 저장됨")
-                    failed_files.append(img_path)
                     continue
             else:
                 # 얼굴을 감지한 경우, 마지막으로 감지된 얼굴을 저장
                 last_valid_face = face
             
             faces.append(face)
-
+        print("Face extraction time:", time.time() - start)
         if len(faces) < self.T:  # 얼굴을 모두 감지하지 못했으면 예외 발생
             raise ValueError(f"{frame_folder}에서 {self.T}개의 얼굴을 감지하지 못했습니다. 실패한 파일들: {failed_files}")
-    
+        start = time.time()#시간 측정용
         feature_sequence = extract_cnn_features(faces, self.device)
-        
+        print("Feature extraction time:", time.time() - start)
         return feature_sequence, torch.tensor([label], dtype=torch.float32)

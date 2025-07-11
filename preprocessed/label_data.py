@@ -28,7 +28,7 @@ def load_binary_labels(csv_path,save_path):
         label_df.to_csv(save_path, index=False)
         print(f"✅ 이진 라벨 CSV 저장 완료: {save_path}")
 
-path= "../Labels/TrainLabels.csv"
-save_path="./pre_labels/pre_TrainLabels.csv"
+path= "../Labels/ValidationLabels.csv"
+save_path="./pre_labels/pre_ValidationLabels.csv"
 print("현재 작업 디렉토리:", os.getcwd())
 load_binary_labels(path,save_path)

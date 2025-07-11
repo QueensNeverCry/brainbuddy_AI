@@ -52,9 +52,10 @@ def extract_all_from_train_txt(train_txt_path, video_root, output_root, frame_in
 
 
 if __name__ == "__main__":
-    train_txt_path = "DataSet/Train.txt"
-    video_root = "DataSet/Train"
-    output_root = "extracted_frames"
+    #train으로 바꾸면 train dataset 전처리 할 수 있음 
+    train_txt_path = "../DataSet/Validation.txt"
+    video_root = "../DataSet/Validation"
+    output_root = "validation"
     frame_interval = 30  # 6프레임마다 1장
     total=0
     extract_all_from_train_txt(train_txt_path, video_root, output_root, frame_interval,total)
