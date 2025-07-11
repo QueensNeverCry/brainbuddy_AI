@@ -1,6 +1,8 @@
 import csv
 import os
 from tqdm import tqdm
+import pickle
+
 # trainLabels에 없는 영상들이 trainData에 있는 문제 발생
 # all labels 에서 해당 영상 클립ID 에 해당하는 라벨을 가져옴
 def load_labels(label_csv_path1,label_csv_path2):
@@ -33,7 +35,7 @@ def match_train_and_label(train_txt_path, data_root,label_csv_path1,label_csv_pa
         file_id = os.path.splitext(filename)[0]  # "1100062016"
         user_id = file_id[:6]  # 앞 6자리: 사용자 ID "110006"
 
-        # 저장 경로: extracted_frames/001/001003/
+        # 저장 경로 -> 절대 경로로 수정
         output_dir = os.path.join(data_root, user_id, file_id)
         output_dir = os.path.normpath(output_dir)
         
@@ -52,8 +54,11 @@ def match_train_and_label(train_txt_path, data_root,label_csv_path1,label_csv_pa
 
 if __name__ == "__main__":
     train_txt_path = "../DataSet/Train.txt"
-    data_root = "extracted_frames"
+    data_root = "C:/GitHub/brainbuddy/extracted_frames"
     label_csv_path1 = "./pre_labels/pre_TrainLabels.csv"
     label_csv_path2 = "./pre_labels/pre_AllLabels.csv"
-    data = match_train_and_label(train_txt_path, data_root, label_csv_path1,label_csv_path2)
+    dataset_link = match_train_and_label(train_txt_path, data_root, label_csv_path1,label_csv_path2)
     # 예: [('extracted_frames/110006/1100062016', 1), ('extracted_frames/110007/1100073012', 0), ...]
+    
+    with open("dataset_link.pkl", "wb") as f:
+        pickle.dump(dataset_link, f)

@@ -42,6 +42,7 @@ results/
 logs/
 DataSet/
 extracted_frames/
+Labels/
 
 # ▶ PyTorch & Checkpoints
 *.pt
