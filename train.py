@@ -4,6 +4,7 @@ from torch.utils.data import DataLoader
 from models.concent_model import EngagementModel
 import pickle
 from videoframe_dataset import VideoEngagementDataset
+from tqdm import tqdm
 
 # [(영상경로, 라벨)] 리스트 가져오기
 with open("./preprocessed/dataset_link.pkl", "rb") as f:
@@ -12,10 +13,14 @@ with open("./preprocessed/dataset_link.pkl", "rb") as f:
 # 설정
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+def collate_fn(batch):
+    # batch 내의 None을 제거
+    batch = [item for item in batch if item is not None]
+    return torch.utils.data.dataloader.default_collate(batch)
 
 # dataset_link는 [('extracted_frames/110006/1100062016', 1), ...] 형태라고 가정
 dataset = VideoEngagementDataset(dataset_link, T=10, device=device)
-dataloader = DataLoader(dataset, batch_size=4, shuffle=True, num_workers=2)
+dataloader = DataLoader(dataset, batch_size=32, shuffle=True, num_workers=0,collate_fn=collate_fn)#멀티 프로세싱 안하기ㅣ..
 
 
 # 모델, 손실 함수, 옵티마이저
@@ -30,12 +35,15 @@ for epoch in range(num_epochs):
     model.train()
     running_loss = 0.0
 
-    for features, labels in dataloader:
-        features = features.to(device)      # (batch_size, T, feature_dim)
-        labels = labels.to(device)          # (batch_size, 1)
+    # tqdm으로 progress bar
+    loop = tqdm(enumerate(dataloader), total=len(dataloader), desc=f"Epoch {epoch+1}/{num_epochs}")
+
+    for batch_idx, (features, labels) in loop:
+        features = features.to(device)
+        labels = labels.to(device)
 
         optimizer.zero_grad()
-        outputs = model(features)           # (batch_size, 1)
+        outputs = model(features)
         loss = criterion(outputs, labels)
         loss.backward()
         optimizer.step()
@@ -43,4 +51,4 @@ for epoch in range(num_epochs):
         running_loss += loss.item()
 
     avg_loss = running_loss / len(dataloader)
-    print(f"Epoch [{epoch+1}/{num_epochs}] Loss: {avg_loss:.4f}")
+    print(f"Epoch [{epoch+1}/{num_epochs}] Average Loss: {avg_loss:.4f}")
