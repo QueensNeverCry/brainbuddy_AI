@@ -1,17 +1,18 @@
 import torch
-import torchvision.models as models
+from torchvision.models import mobilenet_v2, MobileNet_V2_Weights
 import torchvision.transforms as transforms
 import torch.nn as nn
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-mobilenet = models.mobilenet_v2(pretrained=True).features.eval().to(device)#평가모드적용
+weights = MobileNet_V2_Weights.DEFAULT
+mobilenet = mobilenet_v2(pretrained=True).features.eval().to(device)#평가모드적용
 
 transform = transforms.Compose([
     transforms.ToPILImage(), # openCV의 이미지는 numpy 배열 -> torchvision은 PIL : 변환필요
     transforms.ToTensor(),# PIL 이미지를 [0,1] 범위의 PyTorch 텐서로 변환해야 모델이 처리가능
-    transforms.Normalize([0.485, 0.456, 0.406],#정규화
-                         [0.229, 0.224, 0.225])
+    transforms.Normalize([0.485, 0.456, 0.406],
+                        [0.229, 0.224, 0.225])
 ])
 
 @torch.no_grad()
