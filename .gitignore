@@ -41,9 +41,10 @@ output/
 results/
 logs/
 DataSet/
-extracted_frames/
+frames/
 Labels/
-
+preprocessed/preprocessed_features
+runs/
 # ▶ PyTorch & Checkpoints
 *.pt
 *.pth

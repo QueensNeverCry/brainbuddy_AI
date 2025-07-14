@@ -2,7 +2,7 @@ import os
 import cv2
 import torch
 from tqdm import tqdm
-from detection.face_detector import extract_face
+from models.face_detector import extract_face
 from models.feature_extractor import extract_cnn_features
 import mediapipe as mp
 import pickle
