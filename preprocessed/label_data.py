@@ -12,7 +12,7 @@ def load_binary_labels(csv_path,save_path):
     df = df.dropna(subset=["Boredom", "Engagement"])
     df['ClipID'] = df['ClipID'].str.replace(r'\.avi|\.mp4', '', regex=True) #확장자(.mp4, .avi) 제거
     # 이진 라벨 생성
-    df["binary_label"] = (df["Engagement"] - df["Boredom"] >= 2).astype(int)
+    df["binary_label"] = (df["Engagement"]>= 2).astype(int)
 
     # 라벨 분포 출력
     label_counts = df["binary_label"].value_counts().sort_index()
@@ -28,7 +28,14 @@ def load_binary_labels(csv_path,save_path):
         label_df.to_csv(save_path, index=False)
         print(f"✅ 이진 라벨 CSV 저장 완료: {save_path}")
 
-path= "../Labels/ValidationLabels.csv"
-save_path="./pre_labels/pre_ValidationLabels.csv"
-print("현재 작업 디렉토리:", os.getcwd())
-load_binary_labels(path,save_path)
+train_path="../DataSet/Labels/TrainLabels.csv"
+val_path= "../DataSet/Labels/ValidationLabels.csv"
+all_path ="../DataSet/Labels/AllLabels.csv"
+
+save_train_path = "./pre_labels/pre_TrainLabels.csv"
+save_val_path = "./pre_labels/pre_ValidationLabels.csv"
+save_all_path = "./pre_labels/pre_AllLabels.csv"
+
+load_binary_labels(train_path,save_train_path)
+load_binary_labels(val_path,save_val_path)
+load_binary_labels(all_path,save_all_path)
