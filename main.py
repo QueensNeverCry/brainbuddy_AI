@@ -1,4 +1,4 @@
-from detection.face_detector import detect_faces
+from models.face_detector import detect_faces
 from models.feature_extractor import extract_cnn_features
 from models.concent_model import EngagementModel
 from utils.visualization import show_image
