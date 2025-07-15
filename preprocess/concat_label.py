@@ -54,11 +54,20 @@ def match_train_and_label(train_txt_path, data_root,label_csv_path1,label_csv_pa
 
 if __name__ == "__main__":
     train_txt_path = "../DataSet/Train.txt"
-    data_root = "C:/KSEB/brainbuddy_AI/extracted_frames"
-    label_csv_path1 = "./pre_labels/pre_TrainLabels.csv"
+    valid_txt_path = "../DataSet/Validation.txt"
+
+    save_train = "C:/KSEB/brainbuddy_AI/frames/train_frames"
+    save_valid = "C:/KSEB/brainbuddy_AI/frames/valid_frames"
+    
+    train_label_csv = "./pre_labels/pre_TrainLabels.csv"
+    val_label_csv = "./pre_labels/pre_ValidationLabels.csv"
     label_csv_path2 = "./pre_labels/pre_AllLabels.csv"
-    dataset_link = match_train_and_label(train_txt_path, data_root, label_csv_path1,label_csv_path2)
+
+    traindataset_link = match_train_and_label(train_txt_path, save_train, train_label_csv, label_csv_path2)
+    valdataset_link = match_train_and_label(valid_txt_path, save_valid, val_label_csv, label_csv_path2)
     # 예: [('extracted_frames/110006/1100062016', 1), ('extracted_frames/110007/1100073012', 0), ...]
     
-    with open("dataset_link.pkl", "wb") as f:
-        pickle.dump(dataset_link, f)
+    with open("train_link.pkl", "wb") as f:
+        pickle.dump(traindataset_link, f)
+    with open("val_link.pkl", "wb") as f:
+        pickle.dump(valdataset_link, f)
