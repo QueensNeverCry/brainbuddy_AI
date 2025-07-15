@@ -12,7 +12,7 @@ def load_labels(label_csv_path1,label_csv_path2):
         reader =csv.DictReader(csvfile1)
         for row in reader:
             clip_id = row["ClipID"]
-            label = int(row["binary_label"])
+            label = int(row["binary_label"]) 
             label_dict1[clip_id]=label
     label_dict2={}
     
