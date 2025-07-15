@@ -70,4 +70,4 @@ if __name__ == "__main__":
         video_path=f"C:/GitHub/brainbuddy/AIHub/train/00/TS_00_0{i}.mp4"
         output_base_path = f"./AIHub_frames/train/00_0{i}"
         extract_frames(video_path, output_base_path)
-        print("=================i번째 영상 전처리 완료===================")
+        print(f"================={i}번째 영상 전처리 완료===================")
