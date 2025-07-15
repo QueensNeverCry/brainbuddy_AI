@@ -43,9 +43,12 @@ logs/
 DataSet/
 frames/
 Labels/
-preprocessed/preprocessed_features
-preprocessed/dataset_link
+preprocess/frames/
+extracted_frames/
 runs/
+preprocess2/AIHub_frames/
+AIHub/
+DAiSEE/
 # ▶ PyTorch & Checkpoints
 *.pt
 *.pth
