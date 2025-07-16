@@ -6,7 +6,7 @@ from models.face_detector import extract_face
 from models.feature_extractor import extract_cnn_features
 import mediapipe as mp
 import pickle
-def preprocess_dataset(dataset_link, save_dir, T=10, device=None):
+def preprocess_dataset(dataset_link, save_dir, T=300, device=None):
     if device is None:
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
@@ -66,6 +66,7 @@ def preprocess_dataset(dataset_link, save_dir, T=10, device=None):
 
         # CNN feature 추출
         features = extract_cnn_features(faces, device) 
+
         try:
             torch.save({
                 'features': features.cpu(),
@@ -86,8 +87,8 @@ with open("./train_link.pkl", "rb") as f:
 with open("./val_link.pkl", "rb") as f:
     val_link = pickle.load(f)
 
-preprocess_dataset(train_link, save_dir="preprocessed_features/train_data", T=10)
-preprocess_dataset(val_link, save_dir="preprocessed_features/val_data", T=10)
+preprocess_dataset(train_link, save_dir="preprocessed_features/train_data", T=300)
+preprocess_dataset(val_link, save_dir="preprocessed_features/val_data", T=300)
 
 print(f"총 학습 데이터 수: {len(train_link)}개")
 print(f"총 검증 데이터 수: {len(val_link)}개")
