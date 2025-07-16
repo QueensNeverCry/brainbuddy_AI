@@ -66,8 +66,8 @@ def extract_frames(video_path, output_base_path, segment_duration=10, target_fps
         
 if __name__ == "__main__":
 
-    for i in range(1,5):
-        video_path=f"C:/GitHub/brainbuddy/AIHub/train/00/TS_00_0{i}.mp4"
-        output_base_path = f"./AIHub_frames/train/00_0{i}"
+    for i in range(4,6):
+        video_path=f"C:/GitHub/brainbuddy/AIHub/train/60/TS_60_0{i}.mp4"
+        output_base_path = f"./AIHub_frames/train/60_0{i}"
         extract_frames(video_path, output_base_path)
         print(f"================={i}번째 영상 전처리 완료===================")

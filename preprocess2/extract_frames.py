@@ -65,7 +65,7 @@ def extract_frames(video_path, output_base_path, segment_duration=10, target_fps
     print("전체 작업 완료")
         
 if __name__ == "__main__":
-    video_path = "C:/GitHub/brainbuddy/AIHub/train/60/03.mp4"
-    output_base_path = "./AIHub_frames/train/60_03"
+    video_path = "C:/GitHub/brainbuddy/AIHub/train/00/TS_00_05.mp4"
+    output_base_path = "./AIHub_frames/train/00_05"
 
     extract_frames(video_path, output_base_path)

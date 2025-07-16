@@ -56,8 +56,8 @@ if __name__ == "__main__":
     train_txt_path = "../DataSet/Train.txt"
     valid_txt_path = "../DataSet/Validation.txt"
 
-    save_train = "C:/KSEB/brainbuddy_AI/frames/train_frames"
-    save_valid = "C:/KSEB/brainbuddy_AI/frames/valid_frames"
+    save_train = "C:/KSEB/brainbuddy_AI/preprocess/frames/train"
+    save_valid = "C:/KSEB/brainbuddy_AI/preprocess/frames/validation"
     
     train_label_csv = "./pre_labels/pre_TrainLabels.csv"
     val_label_csv = "./pre_labels/pre_ValidationLabels.csv"
