@@ -9,7 +9,9 @@ from sklearn.metrics import f1_score
 import numpy as np
 from tqdm import tqdm
 import random
-import pickle
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.metrics import confusion_matrix
 
 def set_seed(seed=42):
     random.seed(seed)
@@ -28,8 +30,8 @@ def train():
         print("GPU not available. Using CPU.")
 
     # Dataset
-    train_dataset = VideoEngagementFeatureDataset("./preprocessed/preprocessed_features/train_data")
-    val_dataset   = VideoEngagementFeatureDataset("./preprocessed/preprocessed_features/val_data")
+    train_dataset = VideoEngagementFeatureDataset("./preprocess/preprocessed_features/train_data")
+    val_dataset   = VideoEngagementFeatureDataset("./preprocess/preprocessed_features/val_data")
 
     train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, pin_memory=True,num_workers=2)
     val_loader   = DataLoader(val_dataset, batch_size=32, shuffle=False, pin_memory=True,num_workers=2)
@@ -58,7 +60,7 @@ def train():
         loop = tqdm(enumerate(train_loader), total=len(train_loader), desc=f"Epoch {epoch+1}/{num_epochs} [Train]")
 
         for batch_idx, (features, labels) in loop:
-            features = features.to(device, non_blocking=True)
+            features = features.to(device,non_blocking=True).float()
             labels = labels.to(device, non_blocking=True).float().view(-1)
 
             optimizer.zero_grad()
@@ -98,18 +100,32 @@ def train():
         avg_val_loss = val_loss / len(val_loader)
         all_probs = torch.cat(all_probs).numpy()
         all_labels = torch.cat(all_labels).numpy()
-
+        # 🔍 추가: label 분포 확인
+        unique_labels, label_counts = np.unique(all_labels, return_counts=True)
+        print(f"[검증 데이터 레이블 분포] {dict(zip(unique_labels, label_counts))}")
         # 🔹 임계값 튜닝
         best_threshold = 0.5
         best_f1 = 0.0
+        # threshold 튜닝 루프 직전
+        print("예측 확률 샘플:", all_probs[:10])
+        print("정답 레이블 샘플:", all_labels[:10])
         for t in np.arange(0.1, 0.9, 0.05):
             preds = (all_probs > t).astype(int)
             f1 = f1_score(all_labels, preds)
+            print(f"[Threshold: {t:.2f}] F1: {f1:.4f}")  # 🔍 F1 변화 확인
             if f1 > best_f1:
                 best_f1 = f1
                 best_threshold = t
         val_f1 = best_f1
+        # 기존 val_f1 계산 뒤에 추가
+        cm = confusion_matrix(all_labels, (all_probs > best_threshold).astype(int))
 
+        plt.figure(figsize=(6,5))
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=[0,1], yticklabels=[0,1])
+        plt.xlabel("Predicted Label")
+        plt.ylabel("True Label")
+        plt.title("Confusion Matrix")
+        plt.show()
         print(f"Epoch [{epoch+1}/{num_epochs}] Val Loss: {avg_val_loss:.4f}, F1: {val_f1:.4f}, Best Threshold: {best_threshold:.2f}")
 
         # TensorBoard 기록
