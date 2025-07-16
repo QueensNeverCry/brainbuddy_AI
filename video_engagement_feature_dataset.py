@@ -15,4 +15,4 @@ class VideoEngagementFeatureDataset(Dataset):
     def __getitem__(self, idx):
         sample_path = self.samples[idx]
         data = torch.load(sample_path, map_location='cpu', weights_only=True)
-        return data['features'], data['label']
+        return data['features'].float(), data['label']
