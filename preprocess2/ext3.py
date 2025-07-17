@@ -25,13 +25,12 @@ def extract_frames(video_path, output_base_path, segment_duration=10, target_fps
     num_segments = total_frames // segment_frame_count
     
     print(f"🎬 세그먼트 수: {num_segments}, Interval: {frame_interval}프레임마다 저장")
+    os.makedirs(output_base_path,exist_ok=True)
+    saved_total=0
     
     for segment_idx in tqdm(range(num_segments),desc="300프레임 단위로 분리"):
         cap.set(cv2.CAP_PROP_POS_FRAMES, segment_idx*segment_frame_count)# 해당 프레임 위치로 이동(점프)
-        
-        output_dir = os.path.join(output_base_path, str(segment_idx))
-        os.makedirs(output_dir,exist_ok=True)
-        
+       
         count=0
         saved=0
         retry_count = 0
@@ -55,7 +54,7 @@ def extract_frames(video_path, output_base_path, segment_duration=10, target_fps
             retry_count = 0  # 성공했으니 재시도 카운트 초기화
             
             if count % frame_interval ==0 :
-                frame_path = os.path.join(output_dir, f"{saved:04d}.jpg")
+                frame_path = os.path.join(output_base_path, f"{saved:04d}.jpg")
                 cv2.imwrite(frame_path,frame)
                 saved +=1
                 

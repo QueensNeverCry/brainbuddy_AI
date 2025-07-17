@@ -6,10 +6,17 @@ from models.face_detector import extract_face
 from models.feature_extractor import extract_cnn_features
 import mediapipe as mp
 import pickle
-def preprocess_dataset(dataset_link, save_dir, T=300, device=None):
+
+# 저장 형식 : 
+# {
+#     "features": [Tensor [T, D], Tensor [T, D], ...],  # N개 샘플
+#     "labels": [tensor(0.), tensor(1.), ...]           # N개 레이블
+# }
+
+def preprocess_dataset(dataset_link, save_dir, T=300, device=None, save_name="features_labels.pkl"):
     if device is None:
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        
+
     face_mesh = mp.solutions.face_mesh.FaceMesh(
         static_image_mode=True,
         max_num_faces=1,
@@ -20,10 +27,10 @@ def preprocess_dataset(dataset_link, save_dir, T=300, device=None):
 
     os.makedirs(save_dir, exist_ok=True)
 
+    all_features = []
+    all_labels = []
+
     for i, (frame_folder, label) in enumerate(tqdm(dataset_link)):
-        feature_save_path = os.path.join(save_dir, f"sample_{i}.pt")
-        if os.path.exists(feature_save_path):
-            continue  # 이미 전처리된 경우 건너뜀
         try:
             img_files = sorted([
                 f for f in os.listdir(frame_folder)
@@ -33,7 +40,7 @@ def preprocess_dataset(dataset_link, save_dir, T=300, device=None):
             print(f"[SKIP] {frame_folder}: 경로를 찾을 수 없습니다")
             continue
 
-        if len(img_files) < T:#frame이 10개보다 적은 경우 건너뜀
+        if len(img_files) < T:
             print(f"[SKIP] {frame_folder}: insufficient frames")
             continue
 
@@ -65,30 +72,34 @@ def preprocess_dataset(dataset_link, save_dir, T=300, device=None):
             continue
 
         # CNN feature 추출
-        features = extract_cnn_features(faces, device) 
+        features = extract_cnn_features(faces, device)
 
-        try:
-            torch.save({
-                'features': features.cpu(),
-                'label': torch.tensor([label], dtype=torch.float32)
-            }, feature_save_path)
-        except Exception as e:
-            print(f"[ERROR] Saving failed: {e}")
+        # 누적 저장
+        all_features.append(features.cpu())
+        all_labels.append(torch.tensor(label, dtype=torch.float32))
 
-# 실행 : mediapipe에서 추출한 landmark-> CNN 특징벡터로 미리 추출
-# LSTM 훈련 시 사용, 병목 최소화
+    # 모든 feature와 label을 하나의 파일로 저장
+    output_path = os.path.join(save_dir, save_name)
+    with open(output_path, "wb") as f:
+        pickle.dump({
+            "features": all_features,  # 리스트 [N개 Tensor]
+            "labels": all_labels       # 리스트 [N개 Tensor or float]
+        }, f)
 
-# git Bash 에서 실행시 PYTHONPATH 설정 후 실행
-#   export PYTHONPATH=..
-#   python preprocess_and_save_features.py
+    print(f"[✅ Saved] {output_path} | 총 샘플 수: {len(all_features)}")
 
+# -----------------------------
+# 실행부
+# -----------------------------
 with open("./train_link.pkl", "rb") as f:
     train_link = pickle.load(f)
 with open("./val_link.pkl", "rb") as f:
     val_link = pickle.load(f)
 
-preprocess_dataset(train_link, save_dir="preprocessed_features/train_data", T=300)
-preprocess_dataset(val_link, save_dir="preprocessed_features/val_data", T=300)
+preprocess_dataset(train_link, save_dir="cnn_features/train", T=300, save_name="train_features_labels.pkl")
+preprocess_dataset(val_link, save_dir="cnn_features/valid", T=300, save_name="val_features_labels.pkl")
 
 print(f"총 학습 데이터 수: {len(train_link)}개")
 print(f"총 검증 데이터 수: {len(val_link)}개")
+
+ 
