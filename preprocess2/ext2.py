@@ -17,7 +17,6 @@ def extract_frames(video_path, local_output_base, drive_output_base, segment_dur
     num_segments = total_frames // segment_frame_count
 
     print(f"🎬 세그먼트 수: {num_segments}, Interval: {frame_interval}프레임마다 저장")
-    print(f"▶️ {os.path.basename(video_path)} 총 프레임 수: {total_frames}")
 
     for segment_idx in tqdm(range(num_segments), desc="300프레임 단위로 분리"):
         cap.set(cv2.CAP_PROP_POS_FRAMES, segment_idx * segment_frame_count)
@@ -28,7 +27,15 @@ def extract_frames(video_path, local_output_base, drive_output_base, segment_dur
 
         # ✅ 세그먼트별 로컬 저장 경로
         local_segment_dir = os.path.normpath(os.path.join(local_output_base, f"segment_{segment_idx}"))
+        drive_segment_dir = os.path.normpath(os.path.join(drive_output_base, f"segment_{segment_idx}"))
         os.makedirs(local_segment_dir, exist_ok=True)
+
+        # ✅ Google Drive 경로에 프레임 300장 이상 있으면 건너뜀
+        if os.path.exists(drive_segment_dir):
+            jpg_files = [f for f in os.listdir(drive_segment_dir) if f.endswith(".jpg")]
+            if len(jpg_files) >= max_frames:
+                print(f"✅ 세그먼트 {segment_idx} 이미 {len(jpg_files)}장 존재 → 건너뜀.")
+                continue
 
         print(f"📁 세그먼트 {segment_idx} 저장 시작 → {local_segment_dir}")
 
@@ -72,9 +79,7 @@ def extract_frames(video_path, local_output_base, drive_output_base, segment_dur
             shutil.copytree(local_segment_dir, drive_segment_dir, dirs_exist_ok=True)
             print(f"📤 세그먼트 {segment_idx} → Google Drive 복사 완료: {drive_segment_dir}")
 
-            # ✅ 복사 성공 시, 로컬 세그먼트 폴더 삭제
-            shutil.rmtree(local_segment_dir)
-            print(f"🧹 로컬 세그먼트 폴더 삭제 완료: {local_segment_dir}")
+            shutil.rmtree(local_segment_dir)# 복사 성공 시, 로컬 세그먼트 폴더 삭제
 
         except Exception as e:
             print(f"❌ Google Drive 복사 실패 (세그먼트 {segment_idx}): {e}")
