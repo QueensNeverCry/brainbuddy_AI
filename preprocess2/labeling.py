@@ -23,7 +23,7 @@ def extract_label_and_path(json_path, frame_root):
         normalized = category_name.replace(" ", "")
         if normalized == "집중":
             label = 1
-        elif normalized == "집중하지않음":
+        elif normalized == "집중하지않음" or normalized =="졸음":
             label = 0
         else:
             label = None
@@ -62,19 +62,18 @@ def main():
     base_dir = "C:/GitHub/brainbuddy/preprocess2/AIHub_frames/train"
     label_base = "C:/GitHub/brainbuddy/AIHub/train/label"
     frame_base = base_dir
-    pickle_save_path = "AIHub_label_mapping.pkl"
+    pickle_save_path = "00_label_mapping.pkl"
 
     # AIHub_frames 데이터셋 분류명 : 00_01 ~ 60_05
     target_sets = [
-        "00_01", "00_02", "00_03", "00_04", "00_05",
-        "60_01", "60_02", "60_03"
+        "00_01", "00_02", "00_03", "00_04", "00_05"
     ]
 
     video_label_pairs = []
 
     for set_name in target_sets:
         part1, part2 = set_name.split("_")  # ex: "60", "01"
-        label_subdir = Path(label_base) / part1 / part2 # .. AIHub/train/label/60/01
+        label_subdir = Path(label_base) / part1 / f"TL_{part1}_{part2}" # .. AIHub/train/label/60/TL_60_01
 
         if not os.path.exists(label_subdir):
             print(f"[건너뜀] 라벨 폴더 없음: {label_subdir}")
