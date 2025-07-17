@@ -84,7 +84,7 @@ def extract_frames(video_path, local_output_base, drive_output_base, segment_dur
 
 
 if __name__ == "__main__":
-    video_folder = r"C:/Users/user/Downloads/109.학습태도 및 성향 관찰 데이터/3.개방데이터/1.데이터/Training/01.원천데이터/TS_20_01_3"
+    video_folder = r"C:/Users/user/Downloads/109.학습태도 및 성향 관찰 데이터/3.개방데이터/1.데이터/Training/01.원천데이터/TS_20_01_2"
     local_root = r"C:/Temp/train_frames"  # ✅ 로컬 저장 위치
     drive_root_base = r"G:/내 드라이브/train/20_01"  # ✅ Google Drive 대상 경로
 
