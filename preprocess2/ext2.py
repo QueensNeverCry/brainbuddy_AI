@@ -76,7 +76,7 @@ def extract_frames(video_path, local_output_base, segment_duration=10, target_fp
 
 
 if __name__ == "__main__":
-    for i in range(1,10):
+    for i in range(10,21):
         video_folder = f"C:/Users/user/Downloads/109.학습태도 및 성향 관찰 데이터/3.개방데이터/1.데이터/Training/01.원천데이터/TS_20_01_1/{i}"
         local_root = r"C:/AIhub_frames/train"  # ✅ 로컬 저장 위치
 
