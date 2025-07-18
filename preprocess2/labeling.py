@@ -5,10 +5,11 @@ import pickle
 label_base_dir = r"C:/Users/user/Downloads/109.학습태도 및 성향 관찰 데이터/3.개방데이터/1.데이터/Training/02.라벨링데이터/TL_20_01"
 train_base_dir = r"G:/내 드라이브/train/20_01"
 output_pickle_path = "pickle_labels/train/20_01.pkl"
-
+label_texts = set()
 label_map = {
     "집중": 1,
-    "집중하지않음": 0
+    "집중하지않음": 0,
+    "졸음":0
 }
 
 results = []
@@ -16,7 +17,7 @@ file_count = 0
 parsed_count = 0
 skipped_count = 0
 
-print(f"\n📁 라벨 폴더 확인: {label_base_dir}")
+print(f"\n라벨 폴더 확인: {label_base_dir}")
 if not os.path.exists(label_base_dir):
     print("❌ 경로가 존재하지 않음! 경로를 확인하세요.")
     exit()
@@ -27,7 +28,7 @@ for root, _, files in os.walk(label_base_dir):
         if file.endswith(".json"):
             file_count += 1
             json_path = os.path.join(root, file)
-            print(f"🔍 처리 중: {json_path}")  # 디버깅 출력
+            print(f"처리 중: {json_path}")
 
             filename = os.path.splitext(file)[0]
             try:
@@ -38,8 +39,9 @@ for root, _, files in os.walk(label_base_dir):
                 with open(json_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
 
-                label_text = data["이미지"]["category"]["name"]
+                label_text = data["이미지"]["category"]["name"].strip()
                 label = label_map[label_text]
+                label_texts.add(label_text)
 
                 results.append((train_path, label))
                 parsed_count += 1
@@ -57,13 +59,15 @@ os.makedirs(os.path.dirname(output_pickle_path), exist_ok=True)
 with open(output_pickle_path, 'wb') as f:
     pickle.dump(results, f)
 
-print("\n✅ 완료된 파일 수:", parsed_count)
-print("🚫 스킵된 파일 수:", skipped_count)
-print("📦 Pickle 저장 위치:", output_pickle_path)
+print("\n완료된 파일 수:", parsed_count)
+print("스킵된 파일 수:", skipped_count)
+print("Pickle 저장 위치:", output_pickle_path)
 
 # 예시 출력
 print("\n🎯 예시 출력 (최대 5개):")
 for item in results[:5]:
     print(item)
-
-print(f"\n🔢 총 {len(results)}개의 데이터가 저장되었습니다.")
+print(f"\n총 {len(results)}개의 데이터가 저장되었습니다.")
+print("\n 등장한 라벨 문자열:")
+for label in sorted(label_texts):
+    print(f"  '{label}'")

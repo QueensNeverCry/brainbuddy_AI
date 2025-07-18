@@ -21,6 +21,11 @@ transform = transforms.Compose([
 
 @torch.no_grad()
 def extract_features_from_folder(frame_folder, model, device, T=300):
+    # 해당 폴더가 존재하지 않으면 패스
+    if not os.path.exists(frame_folder):
+        print(f"[SKIP] 경로 없음 : {frame_folder}")
+        return None
+
     # 이미지 파일 정렬
     img_files = sorted([
         f for f in os.listdir(frame_folder)
@@ -31,7 +36,7 @@ def extract_features_from_folder(frame_folder, model, device, T=300):
         print(f"[SKIP] {frame_folder}: 프레임 부족 ({len(img_files)}/{T})")
         return None
 
-    # 앞쪽 300장 사용
+    # 300장 경로 추출
     img_paths = [os.path.join(frame_folder, f) for f in img_files[:T]]
     frames = []
 
@@ -41,7 +46,7 @@ def extract_features_from_folder(frame_folder, model, device, T=300):
             print(f"[ERROR] 이미지 로드 실패: {path}")
             return None
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        frames.append(transform(img))  # Tensor [3, 224, 224]
+        frames.append(transform(img))  # img 형태 : Tensor [3, 224, 224]
 
     frames_tensor = torch.stack(frames).unsqueeze(0).to(device)  # [1, 300, 3, 224, 224]
     features = model(frames_tensor).squeeze(0).cpu()  # [300, 1280]

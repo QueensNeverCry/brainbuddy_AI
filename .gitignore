@@ -49,6 +49,8 @@ runs/
 preprocess2/AIHub_frames/
 AIHub/
 DAiSEE/
+TL_20_01/
+TL_20_03/
 # ▶ PyTorch & Checkpoints
 *.pt
 *.pth
