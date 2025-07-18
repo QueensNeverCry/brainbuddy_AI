@@ -8,7 +8,9 @@ output_pickle_path = "pickle_labels/train/20_01.pkl"
 
 label_map = {
     "집중": 1,
-    "집중하지않음": 0
+    "집중하지않음": 0,
+    "졸음":0,
+    "집중하지 않음":0
 }
 
 results = []
