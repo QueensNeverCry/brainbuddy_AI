@@ -2,9 +2,9 @@ import os
 import json
 import pickle
 
-label_base_dir = r"C:/Users/user/Downloads/109.학습태도 및 성향 관찰 데이터/3.개방데이터/1.데이터/Training/02.라벨링데이터/TL_20_01"
-train_base_dir = r"G:/내 드라이브/train/20_01"
-output_pickle_path = "pickle_labels/train/20_01.pkl"
+label_base_dir = r"C:/Users/user/Downloads/109.학습태도 및 성향 관찰 데이터/3.개방데이터/1.데이터/Validation/02.라벨링데이터/VL_20_03"
+train_base_dir = r"G:/내 드라이브/valid/20_03"
+output_pickle_path = "pickle_labels/valid/20_03.pkl"
 label_texts = set()
 label_map = {
     "집중": 1,
