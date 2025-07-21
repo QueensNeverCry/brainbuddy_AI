@@ -5,6 +5,7 @@ import pickle
 from tqdm import tqdm
 from torchvision import transforms
 from models.cnn_encoder import CNNEncoder
+from models.face_crop import crop_face
 
 """
 특징벡터 추출하고 pkl로 변환
@@ -20,7 +21,7 @@ transform = transforms.Compose([
 ])
 
 @torch.no_grad()
-def extract_features_from_folder(frame_folder, model, device, T=300):
+def extract_features_from_folder(frame_folder, model, device, T=100):
     # 해당 폴더가 존재하지 않으면 패스
     if not os.path.exists(frame_folder):
         print(f"[SKIP] 경로 없음 : {frame_folder}")
@@ -36,7 +37,7 @@ def extract_features_from_folder(frame_folder, model, device, T=300):
         print(f"[SKIP] {frame_folder}: 프레임 부족 ({len(img_files)}/{T})")
         return None
 
-    # 300장 경로 추출
+    # 100장 경로 추출
     img_paths = [os.path.join(frame_folder, f) for f in img_files[:T]]
     frames = []
 
@@ -45,14 +46,15 @@ def extract_features_from_folder(frame_folder, model, device, T=300):
         if img is None:
             print(f"[ERROR] 이미지 로드 실패: {path}")
             return None
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        frames.append(transform(img))  # img 형태 : Tensor [3, 224, 224]
+        face_crop = crop_face(img) #얼굴이 없는 경우 프레임 전체 반환
+        tensor = transform(face_crop)
+        frames.append(tensor)
 
-    frames_tensor = torch.stack(frames).unsqueeze(0).to(device)  # [1, 300, 3, 224, 224]
-    features = model(frames_tensor).squeeze(0).cpu()  # [300, 1280]
+    frames_tensor = torch.stack(frames).unsqueeze(0).to(device)  # [1, 100, 3, 224, 224]
+    features = model(frames_tensor).squeeze(0).cpu()  # [100, 1280]
     return features
 
-def save_features_as_pkl(dataset_link, save_path, device=None, T=300):
+def save_features_as_pkl(dataset_link, save_path, device=None, T=100):
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -66,23 +68,23 @@ def save_features_as_pkl(dataset_link, save_path, device=None, T=300):
         features = extract_features_from_folder(frame_folder, model, device, T)
         if features is None:
             continue
-        all_features.append(features)  # Tensor [300, 1280]
+        all_features.append(features)  # Tensor [100, 1280]
         all_labels.append(torch.tensor(label, dtype=torch.float32))
 
     with open(save_path, "wb") as f:
         pickle.dump({
-            "features": all_features,  # 리스트 [N개 x Tensor [300, 1280]]
+            "features": all_features,  # 리스트 [N개 x Tensor [100, 1280]]
             "labels": all_labels       # 리스트 [N개 x Tensor]
         }, f)
 
     print(f"[✅ 저장 완료] {save_path} | 총 샘플: {len(all_features)}")
 
 if __name__ == "__main__":
-    with open("./AIHub_label_mapping.pkl", "rb") as f: #(link,label) 가져오기
+    with open("./pickle_labels/train/20_01.pkl", "rb") as f: #(link,label) 가져오기
         dataset_link = pickle.load(f)
 
     save_features_as_pkl(
         dataset_link,
-        save_path="cnn_features/train_features_labels.pkl", #저장 경로
-        T=300
+        save_path="cnn_features/features/train_20_01.pkl", #저장 경로
+        T=100
     )
