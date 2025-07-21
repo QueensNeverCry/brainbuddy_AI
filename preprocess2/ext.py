@@ -3,7 +3,7 @@ import os
 import shutil
 from tqdm import tqdm
 
-def extract_frames(video_path, local_output_base, segment_duration=10, target_fps=30, max_frames=300):
+def extract_frames(video_path, local_output_base, segment_duration=10, target_fps=10, max_frames=100):
     cap = cv2.VideoCapture(video_path)
 
     if not cap.isOpened():
@@ -61,7 +61,7 @@ def extract_frames(video_path, local_output_base, segment_duration=10, target_fp
                 if frame is None:
                     print(f"❗ 프레임이 None입니다 (세그먼트 {segment_idx}, count {count})")
                 else:
-                    success = cv2.imwrite(frame_path, frame)
+                    success = cv2.imwrite(frame_path, frame,[cv2.IMWRITE_JPEG_QUALITY, 75])
                     if not success:
                         print(f"❌ 프레임 저장 실패: {frame_path}")
                     else:
@@ -91,4 +91,4 @@ if __name__ == "__main__":
             local_output_base = os.path.join(local_root, video_name)
 
             extract_frames(video_path, local_output_base)
-            print(f"================={i}번 폴더 전처리 완료 ===================\n")
+        print(f"================={i}번 폴더 전처리 완료 ===================\n")
