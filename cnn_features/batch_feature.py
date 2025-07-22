@@ -7,7 +7,7 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from tqdm import tqdm
 from models.cnn_encoder import CNNEncoder
-from models.face_crop import crop_face
+from models.face_crop_yolo import crop_face_batch_chunked
 
 
 # 이미지 전처리
@@ -40,12 +40,11 @@ class VideoFolderDataset(Dataset):
         img_paths = [os.path.join(frame_folder, f) for f in img_files[:self.T]]
         frames = []
 
-        for path in img_paths:
-            img = cv2.imread(path)
-            if img is None:
-                raise ValueError(f"Failed to load image: {path}")
-            face_crop = crop_face(img)
-            tensor = transform(face_crop)
+        imgs = [cv2.imread(p) for p in img_paths]
+        crops = crop_face_batch_chunked(imgs, batch_size=4)
+
+        for crop in crops:
+            tensor = transform(crop)
             frames.append(tensor)
 
         frames_tensor = torch.stack(frames)  # [T, 3, 224, 224]
@@ -66,7 +65,7 @@ def extract_batch_features(dataloader, model, device):
 
     return all_features, all_labels
 
-def save_features_as_pkl(dataset_link, save_path, T=100, batch_size=8, num_workers=4):
+def save_features_as_pkl(dataset_link, save_path, T=100, batch_size=4, num_workers=4):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = CNNEncoder().to(device)
     model.eval()
@@ -109,11 +108,6 @@ if __name__ == "__main__":
         dataset_link,
         save_path="cnn_features/features/train_20_01_batch.pkl",
         T=100,
-        batch_size=8,  # GPU 메모리에 따라 조절
+        batch_size=4,  # GPU 메모리에 따라 조절
         num_workers=4
     )
-
-## 아니 이게 뭔지 모르겠는데 왜 다시 torch 가 CPU 버전으로 설치되어있었다..
-#1. pip uninstall torch torchvision torchaudio
-#2. torch‑2.5.1+cu121‑cp310‑cp310‑win_amd64.whl
-# 3. torchvision‑0.18.1+cu121‑cp310‑cp310‑win_amd64.whl
