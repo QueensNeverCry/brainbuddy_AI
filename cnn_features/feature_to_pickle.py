@@ -3,10 +3,13 @@ import cv2
 import torch
 import pickle
 from tqdm import tqdm
+import mediapipe as mp
 from torchvision import transforms
 from models.cnn_encoder import CNNEncoder
 from models.face_crop import crop_face
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"# 경고 숨김
+mp_face_detection = mp.solutions.face_detection
+
 """
 특징벡터 추출하고 pkl로 변환
 """
@@ -53,15 +56,16 @@ def extract_features_from_folder(frame_folder, model, device, T=100):
     img_paths = [os.path.join(frame_folder, f) for f in img_files[:T]]
     frames = []
 
-    for path in img_paths:
-        img = cv2.imread(path)
-        if img is None:
-            print(f"[ERROR] 이미지 로드 실패: {path}")
-            load_fail_count += 1
-            return None
-        face_crop = crop_face(img) #얼굴이 없는 경우 프레임 전체 반환
-        tensor = transform(face_crop)
-        frames.append(tensor)
+    with mp_face_detection.FaceDetection(model_selection=0, min_detection_confidence=0.5) as face_detector:
+        for path in img_paths:
+            img = cv2.imread(path)
+            if img is None:
+                print(f"[ERROR] 이미지 로드 실패: {path}")
+                load_fail_count += 1
+                return None
+            face_crop = crop_face(img, face_detector) #얼굴이 없는 경우 프레임 전체 반환
+            tensor = transform(face_crop)
+            frames.append(tensor)
 
     frames_tensor = torch.stack(frames).unsqueeze(0).to(device)  # [1, 100, 3, 224, 224]
     features = model(frames_tensor).squeeze(0).cpu()  # [100, 1280]
