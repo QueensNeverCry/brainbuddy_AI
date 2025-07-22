@@ -2,14 +2,17 @@ import os
 import json
 import pickle
 
-label_base_dir = r"C:/Users/user/Downloads/109.학습태도 및 성향 관찰 데이터/3.개방데이터/1.데이터/Training/02.라벨링데이터/TL_20_01"
-train_base_dir = r"G:/내 드라이브/train/20_01"
-output_pickle_path = "pickle_labels/train/20_01.pkl"
+label_base_dir = os.path.normpath(
+    r"C:/Users/user/Downloads/109.학습태도 및 성향 관찰 데이터/3.개방데이터/1.데이터/Training/02.라벨링데이터/TL_20_01"
+)
+train_base_dir = os.path.normpath(r"C:/AIhub_frames/train")
+output_pickle_path = os.path.normpath("pickle_labels/train/20_01.pkl")
+
 label_texts = set()
 label_map = {
     "집중": 1,
     "집중하지않음": 0,
-    "졸음":0
+    "졸음": 0
 }
 
 results = []
@@ -27,14 +30,14 @@ for root, _, files in os.walk(label_base_dir):
     for file in files:
         if file.endswith(".json"):
             file_count += 1
-            json_path = os.path.join(root, file)
+            json_path = os.path.normpath(os.path.join(root, file))
             print(f"처리 중: {json_path}")
 
             filename = os.path.splitext(file)[0]
             try:
                 *prefix_parts, num_folder = filename.split("-")
                 folder_name = "-".join(prefix_parts)
-                train_path = os.path.join(train_base_dir, folder_name, num_folder)
+                train_path = os.path.normpath(os.path.join(train_base_dir, folder_name, f"segment_{num_folder}"))
 
                 with open(json_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
