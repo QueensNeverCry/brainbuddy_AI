@@ -30,7 +30,7 @@ def extract_frames(video_path, local_output_base, segment_duration=10, target_fp
 
     print(f"🎬 세그먼트 수: {num_segments}, Interval: {frame_interval}프레임마다 저장")
 
-    for segment_idx in tqdm(range(num_segments), desc="300프레임 단위로 분리"):
+    for segment_idx in tqdm(range(num_segments), desc="100프레임 단위로 분리"):
         local_segment_dir = os.path.normpath(os.path.join(local_output_base, f"segment_{segment_idx}"))
 
         if os.path.exists(local_segment_dir):
