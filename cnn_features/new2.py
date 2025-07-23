@@ -121,7 +121,7 @@ if __name__ == "__main__":
 
     save_features_as_pkl(
         dataset_link,
-        save_path="cnn_features/features/train_20_01.pkl",
+        save_path="cnn_features/features/train_20_01_2.pkl",
         device_str=device_str,
         T=100,
         num_workers=max_workers
