@@ -41,7 +41,7 @@ class VideoFolderDataset(Dataset):
         frames = []
 
         imgs = [cv2.imread(p) for p in img_paths]
-        crops = crop_face_batch_chunked(imgs, batch_size=4)
+        crops = crop_face_batch_chunked(imgs, batch_size=2)
 
         for crop in crops:
             tensor = transform(crop)
@@ -65,7 +65,7 @@ def extract_batch_features(dataloader, model, device):
 
     return all_features, all_labels
 
-def save_features_as_pkl(dataset_link, save_path, T=100, batch_size=4, num_workers=4):
+def save_features_as_pkl(dataset_link, save_path, T=100, batch_size=4, num_workers=2):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = CNNEncoder().to(device)
     model.eval()
@@ -109,5 +109,5 @@ if __name__ == "__main__":
         save_path="cnn_features/features/train_20_01_batch.pkl",
         T=100,
         batch_size=4,  # GPU 메모리에 따라 조절
-        num_workers=4
+        num_workers=2
     )
