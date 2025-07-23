@@ -37,6 +37,7 @@ def train():
 
     dataset = CNNFeatureDataset([
         "./cnn_features/features/train_20_01.pkl",
+        "./cnn_features/features/train_20_03.pkl"
     
     ])
     total_size = len(dataset)
@@ -53,14 +54,8 @@ def train():
     train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, pin_memory=True,num_workers=2)
     val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False, pin_memory=True,num_workers=2)
 
-    # 클래스 불균형 처리 (pos_weight 계산)
-    num_neg = 496
-    num_pos = 5730
-    pos_weight_value = (num_neg / num_pos)*5 # ⬅️ 수정됨
-    pos_weight = torch.tensor([pos_weight_value], device=device)
-
     model = EngagementModel().to(device)
-    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+    criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=4)# 스케쥴러로 lr 조정
     writer = SummaryWriter(log_dir='./runs/engagement_experiment')
