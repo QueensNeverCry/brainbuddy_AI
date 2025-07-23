@@ -11,9 +11,7 @@ class CNNFeatureDataset(Dataset):
                 data = pickle.load(f)
             self.features.extend(data['features'])
             self.labels.extend(data['labels'])
-            
-        self.features = data['features']
-        self.labels = data['labels']
+
 
     def __len__(self):
         return len(self.labels)
