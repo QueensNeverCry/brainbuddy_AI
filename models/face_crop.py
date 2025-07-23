@@ -1,13 +1,20 @@
 import cv2
 import mediapipe as mp
+"""
+속도 향상을 위해 축소된 이미지에서 얼굴 검출 -> 원본 크기에 맞춰 bounding box 계산
+"""
 
-
-# 수정된 crop_face 함수
 def crop_face(img_bgr, face_detector, fallback_to_full=True):
-    img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-    h, w, _ = img_rgb.shape
+    h, w, _ = img_bgr.shape
 
-    results = face_detector.process(img_rgb)
+    # ⏱️ 1. Resize for faster face detection
+    scale = 0.25  # 이미지 크기 줄이기 (예: 640x480 → 160x120)
+    resized = cv2.resize(img_bgr, (int(w * scale), int(h * scale)))
+    resized_rgb = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
+    rh, rw, _ = resized_rgb.shape
+
+    # ⏱️ 2. Detect face on resized image
+    results = face_detector.process(resized_rgb)
 
     if results.detections:
         max_area = 0
@@ -20,11 +27,15 @@ def crop_face(img_bgr, face_detector, fallback_to_full=True):
                 best_bbox = bbox
 
         if best_bbox:
-            x1 = max(int(best_bbox.xmin * w), 0)
-            y1 = max(int(best_bbox.ymin * h), 0)
-            x2 = min(x1 + int(best_bbox.width * w), w)
-            y2 = min(y1 + int(best_bbox.height * h), h)
-            face_crop = img_rgb[y1:y2, x1:x2]
-            return face_crop
+            # ⏱️ 3. Rescale bbox to original image size
+            x1 = max(int((best_bbox.xmin * rw) / scale), 0)
+            y1 = max(int((best_bbox.ymin * rh) / scale), 0)
+            x2 = min(x1 + int((best_bbox.width * rw) / scale), w)
+            y2 = min(y1 + int((best_bbox.height * rh) / scale), h)
+            face_crop = img_bgr[y1:y2, x1:x2]
+            face_rgb = cv2.cvtColor(face_crop, cv2.COLOR_BGR2RGB)
+            return face_rgb
 
-    return img_rgb if fallback_to_full else None # 얼굴 검출이 안되면 전체 이미지를 반환
+    # 실패 시 전체 이미지 (RGB)
+    return cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB) if fallback_to_full else None
+

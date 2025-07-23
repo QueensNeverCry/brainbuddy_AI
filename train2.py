@@ -1,17 +1,16 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, random_split
 from torch.utils.tensorboard import SummaryWriter
 from models.concent_model import EngagementModel
 from video_engagement_feature_dataset import VideoEngagementFeatureDataset
-from sklearn.metrics import f1_score
+from sklearn.metrics import f1_score,confusion_matrix
 import numpy as np
 from tqdm import tqdm
 import random
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.metrics import confusion_matrix
 
 def set_seed(seed=42):
     random.seed(seed)
@@ -29,12 +28,26 @@ def train():
     else:
         print("GPU not available. Using CPU.")
 
-    # Dataset
-    train_dataset = VideoEngagementFeatureDataset("./preprocess/preprocessed_features/train_data")
-    val_dataset   = VideoEngagementFeatureDataset("./preprocess/preprocessed_features/val_data")
+    # # Dataset
+    # train_dataset = VideoEngagementFeatureDataset("./preprocess/preprocessed_features/train_data")
+    # val_dataset   = VideoEngagementFeatureDataset("./preprocess/preprocessed_features/val_data")
 
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, pin_memory=True,num_workers=2)
-    val_loader   = DataLoader(val_dataset, batch_size=32, shuffle=False, pin_memory=True,num_workers=2)
+    # train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, pin_memory=True,num_workers=2)
+    # val_loader   = DataLoader(val_dataset, batch_size=32, shuffle=False, pin_memory=True,num_workers=2)
+    dataset = VideoEngagementFeatureDataset("./cnn_features/features")
+    total_size = len(dataset)
+    val_size = int(total_size * 0.2)
+    train_size = total_size - val_size
+
+    # 랜덤 분할
+    train_dataset, val_dataset = random_split(
+        dataset,
+        [train_size, val_size],
+        generator=torch.Generator().manual_seed(42)  # 재현성을 위한 시드
+    )
+    # DataLoader 설정
+    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False)
 
     # 클래스 불균형 처리 (pos_weight 계산)
     num_neg = 496
