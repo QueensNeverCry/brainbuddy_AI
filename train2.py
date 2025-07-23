@@ -34,7 +34,7 @@ def train():
 
     # train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, pin_memory=True,num_workers=2)
     # val_loader   = DataLoader(val_dataset, batch_size=32, shuffle=False, pin_memory=True,num_workers=2)
-    dataset = VideoEngagementFeatureDataset("./cnn_features/features")
+    dataset = VideoEngagementFeatureDataset("./cnn_features/features/train_20_01.pkl")
     total_size = len(dataset)
     val_size = int(total_size * 0.2)
     train_size = total_size - val_size
