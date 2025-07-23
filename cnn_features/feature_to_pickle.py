@@ -33,7 +33,7 @@ load_fail_count = 0
 success_count = 0
 
 @torch.no_grad()
-def extract_features_from_folder(frame_folder, model, device, T=100):
+def extract_features_from_folder(frame_folder, model, device, face_detector, T=100):
     global skip_path_count, skip_frame_count, load_fail_count, success_count
     # 해당 폴더가 존재하지 않으면 패스
     if not os.path.exists(frame_folder):
@@ -56,16 +56,12 @@ def extract_features_from_folder(frame_folder, model, device, T=100):
     img_paths = [os.path.join(frame_folder, f) for f in img_files[:T]]
     frames = []
 
-    with mp_face_detection.FaceDetection(model_selection=0, min_detection_confidence=0.5) as face_detector:
-        for path in img_paths:
-            img = cv2.imread(path)
-            if img is None:
-                print(f"[ERROR] 이미지 로드 실패: {path}")
-                load_fail_count += 1
-                return None
-            face_crop = crop_face(img, face_detector) #얼굴이 없는 경우 프레임 전체 반환
-            tensor = transform(face_crop)
-            frames.append(tensor)
+   
+    for path in img_paths:
+        img = cv2.imread(path)
+        face_crop = crop_face(img, face_detector) #얼굴이 없는 경우 프레임 전체 반환
+        tensor = transform(face_crop)
+        frames.append(tensor)
 
     frames_tensor = torch.stack(frames).unsqueeze(0).to(device)  # [1, 100, 3, 224, 224]
     features = model(frames_tensor).squeeze(0).cpu()  # [100, 1280]
@@ -82,13 +78,13 @@ def save_features_as_pkl(dataset_link, save_path, device=None, T=100):
     all_features = []
     all_labels = []
     
-
-    for frame_folder, label in tqdm(dataset_link,desc="📦 Feature 추출 중", total=len(dataset_link)):
-        features = extract_features_from_folder(frame_folder, model, device, T)
-        if features is None:
-            continue
-        all_features.append(features)  # Tensor [100, 1280]
-        all_labels.append(torch.tensor(label, dtype=torch.float32))
+    with mp_face_detection.FaceDetection(model_selection=0, min_detection_confidence=0.5) as face_detector:
+        for frame_folder, label in tqdm(dataset_link,desc="📦 Feature 추출 중", total=len(dataset_link)):
+            features = extract_features_from_folder(frame_folder, model, device,face_detector, T)
+            if features is None:
+                continue
+            all_features.append(features)  # Tensor [100, 1280]
+            all_labels.append(torch.tensor(label, dtype=torch.float32))
 
     with open(save_path, "wb") as f:
         pickle.dump({
@@ -100,13 +96,11 @@ def save_features_as_pkl(dataset_link, save_path, device=None, T=100):
     print("\n📊 처리 통계:")
     print(f"  [경로 없음] {skip_path_count}")
     print(f"  [프레임 부족] {skip_frame_count}")
-    print(f"  [이미지 로드 실패] {load_fail_count}")
     print(f"  [정상 추출 완료] {success_count}")
 
 if __name__ == "__main__":
     with open("preprocess2/pickle_labels/train/20_01.pkl", "rb") as f: #(link,label) 가져오기
         dataset_link = pickle.load(f)
-
 
     save_features_as_pkl(
         dataset_link,
