@@ -3,14 +3,42 @@ import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 from feature_dataset import CNNFeatureDataset
-from models.concent_model import EngagementModel
 from tqdm import tqdm
 import random
 from torch.utils.data import DataLoader, random_split
 from torch.utils.tensorboard import SummaryWriter
-from sklearn.metrics import f1_score,confusion_matrix
+from sklearn.metrics import f1_score, confusion_matrix
 import matplotlib.pyplot as plt
 import seaborn as sns
+
+# BiLSTM + Attention 모델
+class Attention(nn.Module):
+    def __init__(self, hidden_size):
+        super().__init__()
+        self.attn = nn.Linear(hidden_size * 2, 1)
+
+    def forward(self, lstm_out):
+        weights = torch.softmax(self.attn(lstm_out), dim=1)
+        context = torch.sum(weights * lstm_out, dim=1)
+        return context
+
+class EngagementModel(nn.Module):
+    def __init__(self, input_size=1280, hidden_size=256, output_size=1):
+        super().__init__()
+        self.bilstm = nn.LSTM(input_size, hidden_size, batch_first=True, bidirectional=True)
+        self.attn = Attention(hidden_size)
+        self.norm = nn.LayerNorm(hidden_size * 2)
+        self.dropout = nn.Dropout(0.3)
+        self.fc = nn.Linear(hidden_size * 2, output_size)
+
+    def forward(self, x):
+        lstm_out, _ = self.bilstm(x)
+        context = self.attn(lstm_out)
+        context = self.norm(context)
+        context = self.dropout(context)
+        out = self.fc(context)
+        return out
+
 
 def set_seed(seed=42):
     random.seed(seed)
@@ -28,48 +56,32 @@ def train():
     else:
         print("GPU not available. Using CPU.")
 
-    # # Dataset
-    # train_dataset = VideoEngagementFeatureDataset("./preprocess/preprocessed_features/train_data")
-    # val_dataset   = VideoEngagementFeatureDataset("./preprocess/preprocessed_features/val_data")
-
-    # train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, pin_memory=True,num_workers=2)
-    # val_loader   = DataLoader(val_dataset, batch_size=32, shuffle=False, pin_memory=True,num_workers=2)
-
     dataset = CNNFeatureDataset([
-        "./cnn_features/features/train_20_01.pkl",
-    
+        "./cnn_features/features/train_20_01.pkl", "./cnn_features/features/train_20_03.pkl"
     ])
     total_size = len(dataset)
     val_size = int(total_size * 0.2)
     train_size = total_size - val_size
 
-    # 랜덤 분할
     train_dataset, val_dataset = random_split(
         dataset,
         [train_size, val_size],
-        generator=torch.Generator().manual_seed(42)  # 재현성을 위한 시드
+        generator=torch.Generator().manual_seed(42)
     )
-    # DataLoader 설정
-    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, pin_memory=True,num_workers=2)
-    val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False, pin_memory=True,num_workers=2)
-
-    # 클래스 불균형 처리 (pos_weight 계산)
-    num_neg = 496
-    num_pos = 5730
-    pos_weight_value = (num_neg / num_pos)*5 # ⬅️ 수정됨
-    pos_weight = torch.tensor([pos_weight_value], device=device)
+    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, pin_memory=True, num_workers=2)
+    val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False, pin_memory=True, num_workers=2)
 
     model = EngagementModel().to(device)
-    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+    criterion = nn.BCEWithLogitsLoss()  # pos_weight 없이 기본 설정
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=4)# 스케쥴러로 lr 조정
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=4)
     writer = SummaryWriter(log_dir='./runs/engagement_experiment')
 
     num_epochs = 20
     best_val_f1 = 0.0
     patience = 5
     patience_counter = 0
-    global_step = 0  # for batch logging
+    global_step = 0
 
     for epoch in range(num_epochs):
         model.train()
@@ -77,7 +89,7 @@ def train():
         loop = tqdm(enumerate(train_loader), total=len(train_loader), desc=f"Epoch {epoch+1}/{num_epochs} [Train]")
 
         for batch_idx, (features, labels) in loop:
-            features = features.to(device,non_blocking=True).float()
+            features = features.to(device, non_blocking=True).float()
             labels = labels.to(device, non_blocking=True).float().view(-1)
 
             optimizer.zero_grad()
@@ -87,15 +99,12 @@ def train():
             optimizer.step()
 
             running_loss += loss.item()
-
-            # 🔹 배치 단위 TensorBoard 기록
             writer.add_scalar('Loss/train_batch', loss.item(), global_step)
             global_step += 1
 
         avg_train_loss = running_loss / len(train_loader)
         print(f"Epoch [{epoch+1}/{num_epochs}] Train Loss: {avg_train_loss:.4f}")
 
-        # Evaluation
         model.eval()
         val_loss = 0.0
         all_labels = []
@@ -117,26 +126,24 @@ def train():
         avg_val_loss = val_loss / len(val_loader)
         all_probs = torch.cat(all_probs).numpy()
         all_labels = torch.cat(all_labels).numpy()
-        # 🔍 추가: label 분포 확인
+
         unique_labels, label_counts = np.unique(all_labels, return_counts=True)
         print(f"[검증 데이터 레이블 분포] {dict(zip(unique_labels, label_counts))}")
-        # 🔹 임계값 튜닝
+
         best_threshold = 0.5
         best_f1 = 0.0
-        # threshold 튜닝 루프 직전
         print("예측 확률 샘플:", all_probs[:10])
         print("정답 레이블 샘플:", all_labels[:10])
         for t in np.arange(0.1, 0.9, 0.05):
             preds = (all_probs > t).astype(int)
             f1 = f1_score(all_labels, preds)
-            print(f"[Threshold: {t:.2f}] F1: {f1:.4f}")  # 🔍 F1 변화 확인
+            print(f"[Threshold: {t:.2f}] F1: {f1:.4f}")
             if f1 > best_f1:
                 best_f1 = f1
                 best_threshold = t
         val_f1 = best_f1
-        # 기존 val_f1 계산 뒤에 추가
-        cm = confusion_matrix(all_labels, (all_probs > best_threshold).astype(int))
 
+        cm = confusion_matrix(all_labels, (all_probs > best_threshold).astype(int))
         plt.figure(figsize=(6,5))
         sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=[0,1], yticklabels=[0,1])
         plt.xlabel("Predicted Label")
@@ -145,7 +152,6 @@ def train():
         plt.show()
         print(f"Epoch [{epoch+1}/{num_epochs}] Val Loss: {avg_val_loss:.4f}, F1: {val_f1:.4f}, Best Threshold: {best_threshold:.2f}")
 
-        # TensorBoard 기록
         writer.add_scalar('Loss/train', avg_train_loss, epoch)
         writer.add_scalar('Loss/validation', avg_val_loss, epoch)
         writer.add_scalar('F1/validation', val_f1, epoch)
@@ -155,7 +161,7 @@ def train():
         if val_f1 > best_val_f1:
             best_val_f1 = val_f1
             patience_counter = 0
-            torch.save(model.state_dict(), 'best_model.pth')  # 🔸 모델 저장
+            torch.save(model.state_dict(), 'best_model.pth')
         else:
             patience_counter += 1
             if patience_counter >= patience:
