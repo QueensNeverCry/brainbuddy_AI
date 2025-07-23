@@ -1,14 +1,14 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, random_split
-from torch.utils.tensorboard import SummaryWriter
-from models.concent_model import EngagementModel
-from video_engagement_feature_dataset import VideoEngagementFeatureDataset
-from sklearn.metrics import f1_score,confusion_matrix
 import numpy as np
+from feature_dataset import CNNFeatureDataset
+from models.concent_model import EngagementModel
 from tqdm import tqdm
 import random
+from torch.utils.data import DataLoader, random_split
+from torch.utils.tensorboard import SummaryWriter
+from sklearn.metrics import f1_score,confusion_matrix
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -34,7 +34,11 @@ def train():
 
     # train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, pin_memory=True,num_workers=2)
     # val_loader   = DataLoader(val_dataset, batch_size=32, shuffle=False, pin_memory=True,num_workers=2)
-    dataset = VideoEngagementFeatureDataset("./cnn_features/features/train_20_01.pkl")
+
+    dataset = CNNFeatureDataset([
+        "./cnn_features/features/train_20_01.pkl",
+    
+    ])
     total_size = len(dataset)
     val_size = int(total_size * 0.2)
     train_size = total_size - val_size
@@ -46,8 +50,8 @@ def train():
         generator=torch.Generator().manual_seed(42)  # 재현성을 위한 시드
     )
     # DataLoader 설정
-    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, pin_memory=True,num_workers=2)
+    val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False, pin_memory=True,num_workers=2)
 
     # 클래스 불균형 처리 (pos_weight 계산)
     num_neg = 496
@@ -58,7 +62,7 @@ def train():
     model = EngagementModel().to(device)
     criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=4, verbose=True)# 스케쥴러로 lr 조정
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=4)# 스케쥴러로 lr 조정
     writer = SummaryWriter(log_dir='./runs/engagement_experiment')
 
     num_epochs = 20
