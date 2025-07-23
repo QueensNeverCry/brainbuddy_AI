@@ -77,12 +77,12 @@ def train():
     model = EngagementModel().to(device)
     criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=4)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3)# 스케쥴러로 lr 조정
     writer = SummaryWriter(log_dir='./runs/engagement_experiment')
 
     num_epochs = 20
-    best_val_f1 = 0.0
-    patience = 5
+    best_val_loss = float('inf') 
+    patience = 3
     patience_counter = 0
     global_step = 0
 
@@ -133,38 +133,48 @@ def train():
         unique_labels, label_counts = np.unique(all_labels, return_counts=True)
         print(f"[검증 데이터 레이블 분포] {dict(zip(unique_labels, label_counts))}")
 
-        best_threshold = 0.5
-        best_f1 = 0.0
-        print("예측 확률 샘플:", all_probs[:10])
-        print("정답 레이블 샘플:", all_labels[:10])
-        for t in np.arange(0.1, 0.9, 0.05):
-            preds = (all_probs > t).astype(int)
-            f1 = f1_score(all_labels, preds)
-            print(f"[Threshold: {t:.2f}] F1: {f1:.4f}")
-            if f1 > best_f1:
-                best_f1 = f1
-                best_threshold = t
-        val_f1 = best_f1
+        # # 🔹 임계값 튜닝
+        # best_threshold = 0.5
+        # best_f1 = 0.0
+        # # threshold 튜닝 루프 직전
+        # print("예측 확률 샘플:", all_probs[:10])
+        # print("정답 레이블 샘플:", all_labels[:10])
+        # for t in np.arange(0.1, 0.9, 0.05):
+        #     preds = (all_probs > t).astype(int)
+        #     f1 = f1_score(all_labels, preds)
+        #     print(f"[Threshold: {t:.2f}] F1: {f1:.4f}")  # 🔍 F1 변화 확인
+        #     if f1 > best_f1:
+        #         best_f1 = f1
+        #         best_threshold = t
+        # val_f1 = best_f1
+        # # 기존 val_f1 계산 뒤에 추가
+        # cm = confusion_matrix(all_labels, (all_probs > best_threshold).astype(int))
 
-        cm = confusion_matrix(all_labels, (all_probs > best_threshold).astype(int))
-        plt.figure(figsize=(6,5))
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=[0,1], yticklabels=[0,1])
-        plt.xlabel("Predicted Label")
-        plt.ylabel("True Label")
-        plt.title("Confusion Matrix")
+        # plt.figure(figsize=(6,5))
+        # sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=[0,1], yticklabels=[0,1])
+        # plt.xlabel("Predicted Label")
+        # plt.ylabel("True Label")
+        # plt.title("Confusion Matrix")
+        # plt.show()
+        print(f"Epoch [{epoch+1}/{num_epochs}] Train Loss : {avg_train_loss}, Val Loss: {avg_val_loss:.4f}")
+        plt.hist(all_probs[all_labels == 1], bins=50, alpha=0.7, label="Positive")
+        plt.hist(all_probs[all_labels == 0], bins=50, alpha=0.7, label="Negative")
+        plt.title("Sigmoid Output Distribution")
+        plt.xlabel("Predicted Probability")
+        plt.ylabel("Count")
+        plt.legend()
         plt.show()
-        print(f"Epoch [{epoch+1}/{num_epochs}] Val Loss: {avg_val_loss:.4f}, F1: {val_f1:.4f}, Best Threshold: {best_threshold:.2f}")
+
 
         writer.add_scalar('Loss/train', avg_train_loss, epoch)
         writer.add_scalar('Loss/validation', avg_val_loss, epoch)
-        writer.add_scalar('F1/validation', val_f1, epoch)
 
-        scheduler.step(val_f1)
+        scheduler.step(avg_val_loss)
 
-        if val_f1 > best_val_f1:
-            best_val_f1 = val_f1
+        if avg_val_loss < best_val_loss:  # ✅
+            best_val_loss = avg_val_loss
             patience_counter = 0
-            torch.save(model.state_dict(), 'best_model.pth')
+            torch.save(model.state_dict(), 'best_model.pth')  # 모델 저장
         else:
             patience_counter += 1
             if patience_counter >= patience:
@@ -172,7 +182,7 @@ def train():
                 break
 
     writer.close()
-    print("Training complete. Best F1:", best_val_f1)
+    print("Training complete. Best validation loss:", best_val_loss)
 
 if __name__ == '__main__':
     train()
