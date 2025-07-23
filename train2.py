@@ -57,7 +57,9 @@ def train():
         print("GPU not available. Using CPU.")
 
     dataset = CNNFeatureDataset([
-        "./cnn_features/features/train_20_01.pkl", "./cnn_features/features/train_20_03.pkl"
+        "./cnn_features/features/train_20_01.pkl",
+        "./cnn_features/features/train_20_03.pkl"
+    
     ])
     total_size = len(dataset)
     val_size = int(total_size * 0.2)
@@ -68,11 +70,12 @@ def train():
         [train_size, val_size],
         generator=torch.Generator().manual_seed(42)
     )
-    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, pin_memory=True, num_workers=2)
-    val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False, pin_memory=True, num_workers=2)
+    # DataLoader 설정
+    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, pin_memory=True,num_workers=2)
+    val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False, pin_memory=True,num_workers=2)
 
     model = EngagementModel().to(device)
-    criterion = nn.BCEWithLogitsLoss()  # pos_weight 없이 기본 설정
+    criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=4)
     writer = SummaryWriter(log_dir='./runs/engagement_experiment')

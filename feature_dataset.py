@@ -12,6 +12,7 @@ class CNNFeatureDataset(Dataset):
             self.features.extend(data['features'])
             self.labels.extend(data['labels'])
 
+
     def __len__(self):
         return len(self.labels)
 
