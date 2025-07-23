@@ -3,7 +3,9 @@ import os
 import shutil
 from tqdm import tqdm
 
-def extract_frames(video_path, local_output_base, segment_duration=10, target_fps=10, max_frames=100):
+from face_crop import crop_face
+
+def extract_frames(video_path, local_output_base, face_detector, segment_duration=10, target_fps=10, max_frames=100):
     cap = cv2.VideoCapture(video_path)
 
     if not cap.isOpened():
@@ -57,14 +59,11 @@ def extract_frames(video_path, local_output_base, segment_duration=10, target_fp
             retry_count = 0
 
             if count % frame_interval == 0:
-                frame_path = os.path.normpath(os.path.join(local_segment_dir, f"{saved:04d}.jpg"))
-                if frame is None:
-                    print(f"❗ 프레임이 None입니다 (세그먼트 {segment_idx}, count {count})")
-                else:
-                    success = cv2.imwrite(frame_path, frame,[cv2.IMWRITE_JPEG_QUALITY, 75])
-                    if not success:
-                        print(f"❌ 프레임 저장 실패: {frame_path}")
-                    else:
+                cropped = crop_face(frame, face_detector)
+                if cropped is not None:
+                    frame_path = os.path.normpath(os.path.join(local_segment_dir, f"{saved:04d}.jpg"))
+                    success = cv2.imwrite(frame_path, cropped, [cv2.IMWRITE_JPEG_QUALITY, 75])
+                    if success:
                         saved += 1
 
             count += 1
@@ -76,6 +75,8 @@ def extract_frames(video_path, local_output_base, segment_duration=10, target_fp
 
 
 if __name__ == "__main__":
+    mp_face_detection = mp.solutions.face_detection
+    face_detector = mp_face_detection.FaceDetection(model_selection=1, min_detection_confidence=0.5)
     for i in range(1,10):
         video_folder = f"C:/Users/user/Downloads/109.학습태도 및 성향 관찰 데이터/3.개방데이터/1.데이터/Validation/01.원천데이터/vs_20/20_01/{i}"
         local_root = r"C:/f/valid/20_01"  # ✅ 로컬 저장 위치
@@ -90,5 +91,7 @@ if __name__ == "__main__":
             video_name = os.path.splitext(video_file)[0]
             local_output_base = os.path.join(local_root, video_name)
 
-            extract_frames(video_path, local_output_base)
+            extract_frames(video_path, local_output_base, face_detector)
         print(f"================={i}번 폴더 전처리 완료 ===================\n")
+
+    face_detector.close()

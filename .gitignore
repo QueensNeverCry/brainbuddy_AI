@@ -49,7 +49,7 @@ runs/
 preprocess2/AIHub_frames/
 AIHub/
 DAiSEE/
-features/
+cnn_features/features/
 # ▶ PyTorch & Checkpoints
 *.pt
 *.pth
@@ -68,3 +68,4 @@ myenv/
 *.bak
 *.swp
 *.~lock.*
+cnn_features/features/
