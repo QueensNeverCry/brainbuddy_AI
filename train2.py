@@ -11,7 +11,6 @@ from sklearn.metrics import f1_score, confusion_matrix
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# BiLSTM + Attention 모델
 class Attention(nn.Module):
     def __init__(self, hidden_size):
         super().__init__()
@@ -23,12 +22,12 @@ class Attention(nn.Module):
         return context
 
 class EngagementModel(nn.Module):
-    def __init__(self, input_size=1280, hidden_size=256, output_size=1):
+    def __init__(self, input_size=1280, hidden_size=128, output_size=1):
         super().__init__()
         self.bilstm = nn.LSTM(input_size, hidden_size, batch_first=True, bidirectional=True)
         self.attn = Attention(hidden_size)
         self.norm = nn.LayerNorm(hidden_size * 2)
-        self.dropout = nn.Dropout(0.3)
+        self.dropout = nn.Dropout(0.5)
         self.fc = nn.Linear(hidden_size * 2, output_size)
 
     def forward(self, x):
@@ -38,7 +37,6 @@ class EngagementModel(nn.Module):
         context = self.dropout(context)
         out = self.fc(context)
         return out
-
 
 def set_seed(seed=42):
     random.seed(seed)
@@ -51,28 +49,19 @@ def set_seed(seed=42):
 def train():
     set_seed(42)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    if torch.cuda.is_available():
-        print(f"Using GPU: {torch.cuda.get_device_name(0)}")
-    else:
-        print("GPU not available. Using CPU.")
+    print(f"Using {'GPU: ' + torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU'}")
 
     dataset = CNNFeatureDataset([
         "./cnn_features/features/train_20_01.pkl",
         "./cnn_features/features/train_20_03.pkl"
-    
     ])
-    total_size = len(dataset)
-    val_size = int(total_size * 0.2)
-    train_size = total_size - val_size
+    val_size = int(len(dataset) * 0.2)
+    train_size = len(dataset) - val_size
 
-    train_dataset, val_dataset = random_split(
-        dataset,
-        [train_size, val_size],
-        generator=torch.Generator().manual_seed(42)
-    )
-    # DataLoader 설정
-    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, pin_memory=True,num_workers=2)
-    val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False, pin_memory=True,num_workers=2)
+    train_dataset, val_dataset = random_split(dataset, [train_size, val_size], generator=torch.Generator().manual_seed(42))
+
+    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, pin_memory=True, num_workers=2)
+    val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False, pin_memory=True, num_workers=2)
 
     model = EngagementModel().to(device)
     criterion = nn.BCEWithLogitsLoss()
@@ -84,7 +73,10 @@ def train():
     best_val_loss = float('inf') 
     patience = 3
     patience_counter = 0
+    overfit_counter = 0
     global_step = 0
+    prev_val_f1 = 0.0
+    prev_train_loss = float('inf')
 
     for epoch in range(num_epochs):
         model.train()
@@ -130,6 +122,7 @@ def train():
         all_probs = torch.cat(all_probs).numpy()
         all_labels = torch.cat(all_labels).numpy()
 
+<<<<<<< Updated upstream
         unique_labels, label_counts = np.unique(all_labels, return_counts=True)
         print(f"[검증 데이터 레이블 분포] {dict(zip(unique_labels, label_counts))}")
 
@@ -165,21 +158,66 @@ def train():
         plt.legend()
         plt.show()
 
+=======
+        best_threshold = 0.5
+        best_f1 = 0.0
+        for t in np.arange(0.1, 0.9, 0.05):
+            preds = (all_probs > t).astype(int)
+            f1 = f1_score(all_labels, preds)
+            if f1 > best_f1:
+                best_f1 = f1
+                best_threshold = t
+        val_f1 = best_f1
 
+        cm = confusion_matrix(all_labels, (all_probs > best_threshold).astype(int))
+        plt.figure(figsize=(6, 5))
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=[0, 1], yticklabels=[0, 1])
+        plt.xlabel("Predicted Label")
+        plt.ylabel("True Label")
+        plt.title("Confusion Matrix")
+        plt.pause(0.001)
+        plt.close()
+>>>>>>> Stashed changes
+
+        print(f"Epoch [{epoch+1}/{num_epochs}] Val Loss: {avg_val_loss:.4f}, F1: {val_f1:.4f}, Best Threshold: {best_threshold:.2f}")
         writer.add_scalar('Loss/train', avg_train_loss, epoch)
         writer.add_scalar('Loss/validation', avg_val_loss, epoch)
 
         scheduler.step(avg_val_loss)
 
+<<<<<<< Updated upstream
         if avg_val_loss < best_val_loss:  # ✅
             best_val_loss = avg_val_loss
             patience_counter = 0
             torch.save(model.state_dict(), 'best_model.pth')  # 모델 저장
+=======
+        # Early stopping
+        if val_f1 > best_val_f1:
+            best_val_f1 = val_f1
+            patience_counter = 0
+            overfit_counter = 0
+            torch.save(model.state_dict(), 'best_model.pth')
+>>>>>>> Stashed changes
         else:
             patience_counter += 1
-            if patience_counter >= patience:
-                print(f"Early stopping triggered after {epoch+1} epochs.")
-                break
+
+        # Overfitting detection
+        if avg_train_loss < prev_train_loss and val_f1 < prev_val_f1:
+            overfit_counter += 1
+            print(f"⚠️ 과적합 경고: {overfit_counter}회 연속")
+        else:
+            overfit_counter = 0
+
+        if overfit_counter >= 3:
+            print("과적합 판단으로 조기 종료합니다.")
+            break
+
+        if patience_counter >= patience:
+            print(f"Early stopping triggered after {epoch+1} epochs.")
+            break
+
+        prev_val_f1 = val_f1
+        prev_train_loss = avg_train_loss
 
     writer.close()
     print("Training complete. Best validation loss:", best_val_loss)
