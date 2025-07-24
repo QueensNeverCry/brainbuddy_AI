@@ -2,8 +2,8 @@ import cv2
 import os
 import shutil
 from tqdm import tqdm
-
-from face_crop import crop_face
+from models.face_crop import crop_face
+import mediapipe as mp
 
 def extract_frames(video_path, local_output_base, face_detector, segment_duration=10, target_fps=10, max_frames=100):
     cap = cv2.VideoCapture(video_path)
@@ -62,7 +62,8 @@ def extract_frames(video_path, local_output_base, face_detector, segment_duratio
                 cropped = crop_face(frame, face_detector)
                 if cropped is not None:
                     frame_path = os.path.normpath(os.path.join(local_segment_dir, f"{saved:04d}.jpg"))
-                    success = cv2.imwrite(frame_path, cropped, [cv2.IMWRITE_JPEG_QUALITY, 75])
+                    cropped_bgr = cv2.cvtColor(cropped, cv2.COLOR_RGB2BGR)
+                    success = cv2.imwrite(frame_path, cropped_bgr, [cv2.IMWRITE_JPEG_QUALITY, 75])
                     if success:
                         saved += 1
 
