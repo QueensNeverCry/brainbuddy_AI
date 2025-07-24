@@ -6,11 +6,9 @@ from tqdm import tqdm
 import mediapipe as mp
 from torchvision import transforms
 from models.cnn_encoder import CNNEncoder
-from models.face_crop import crop_face
 import multiprocessing
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
-mp_face_detection = mp.solutions.face_detection
 
 transform = transforms.Compose([
     transforms.ToPILImage(),
@@ -49,15 +47,15 @@ def extract_features_from_folder(args):
     img_paths = [os.path.join(frame_folder, f) for f in img_files[:T]]
     frames = []
 
-    with mp_face_detection.FaceDetection(model_selection=0, min_detection_confidence=0.5) as face_detector:
-        for path in img_paths:
-            img = cv2.imread(path)
-            if img is None:
-                load_fail_count += 1
-                return None
-            face_crop = crop_face(img, face_detector)
-            tensor = transform(face_crop)
-            frames.append(tensor)
+   
+    for path in img_paths:
+        img = cv2.imread(path)
+        if img is None:
+            load_fail_count += 1
+            return None
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        tensor = transform(img_rgb)
+        frames.append(tensor)
 
     frames_tensor = torch.stack(frames).unsqueeze(0).to(device)
     features = model(frames_tensor).squeeze(0).cpu()

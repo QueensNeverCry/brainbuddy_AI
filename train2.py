@@ -56,7 +56,7 @@ def train():
 
     model = EngagementModel().to(device)
     criterion = nn.BCEWithLogitsLoss()
-    optimizer = optim.Adam(model.parameters(), lr=1e-4)
+    optimizer = optim.Adam(model.parameters(), lr=1e-4, weight_decay=1e-5) # 과적합 방지용 : weight decay 추가
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3)# 스케쥴러로 lr 조정
     writer = SummaryWriter(log_dir='./runs/engagement_experiment')
 
@@ -88,7 +88,7 @@ def train():
             global_step += 1
 
         avg_train_loss = running_loss / len(train_loader)
-        print(f"Epoch [{epoch+1}/{num_epochs}] Train Loss: {avg_train_loss:.4f}")
+        #print(f"Epoch [{epoch+1}/{num_epochs}] Train Loss: {avg_train_loss:.4f}")
 
         # Evaluation
         model.eval()
@@ -110,6 +110,7 @@ def train():
                 all_labels.append(labels.cpu())
 
         avg_val_loss = val_loss / len(val_loader)
+        #print(f"Epoch [{epoch+1}/{num_epochs}] Val Loss: {avg_val_loss:.4f}")
         all_probs = torch.cat(all_probs).numpy()
         all_labels = torch.cat(all_labels).numpy()
         # 🔍 추가: label 분포 확인
