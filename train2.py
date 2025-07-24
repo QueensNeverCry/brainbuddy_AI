@@ -59,8 +59,8 @@ def train():
     dataset = CNNFeatureDataset([
         "./cnn_features/features/train_20_01.pkl",
         "./cnn_features/features/train_20_03.pkl"
-    
     ])
+    
     total_size = len(dataset)
     val_size = int(total_size * 0.2)
     train_size = total_size - val_size
