@@ -10,6 +10,7 @@ from torch.utils.tensorboard import SummaryWriter
 from sklearn.metrics import f1_score, confusion_matrix
 import matplotlib.pyplot as plt
 import seaborn as sns
+import os
 
 class Attention(nn.Module):
     def __init__(self, hidden_size):
@@ -22,7 +23,7 @@ class Attention(nn.Module):
         return context
 
 class EngagementModel(nn.Module):
-    def __init__(self, input_size=1280, hidden_size=128, output_size=1):
+    def __init__(self, input_size=512, hidden_size=128, output_size=1):
         super().__init__()
         self.bilstm = nn.LSTM(input_size, hidden_size, batch_first=True, bidirectional=True)
         self.attn = Attention(hidden_size)
@@ -51,10 +52,16 @@ def train():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using {'GPU: ' + torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU'}")
 
-    dataset = CNNFeatureDataset([
-        "./cnn_features/features/train_20_01.pkl",
-        "./cnn_features/features/train_20_03.pkl"
-    ])
+    # 데이터셋 경로, 지금까지 만든 피클 파일 위치로 수정
+    feature_files = [
+    os.path.normpath(r"C:/Users/user/Desktop/brainbuddy_AI/StudentEngagement/features/train/train_features.pkl"),
+    os.path.normpath(r"C:/Users/user/Desktop/brainbuddy_AI/StudentEngagement/features/train/train_features_aug.pkl"),
+]
+
+    
+
+    dataset = CNNFeatureDataset(feature_files)
+
     val_size = int(len(dataset) * 0.2)
     train_size = len(dataset) - val_size
 
@@ -63,11 +70,11 @@ def train():
     train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, pin_memory=True, num_workers=2)
     val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False, pin_memory=True, num_workers=2)
 
-    model = EngagementModel().to(device)
+    model = EngagementModel(input_size=512).to(device)  # 피처 벡터 차원 512에 맞춤
     criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3)# 스케쥴러로 lr 조정
-    writer = SummaryWriter(log_dir='./runs/engagement_experiment')
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3)
+    writer = SummaryWriter(log_dir=os.path.normpath(r'C:/Users/user/Desktop/brainbuddy_AI/StudentEngagement/runs/engagement_experiment'))
 
     num_epochs = 20
     best_val_loss = float('inf') 
@@ -125,30 +132,18 @@ def train():
         unique_labels, label_counts = np.unique(all_labels, return_counts=True)
         print(f"[검증 데이터 레이블 분포] {dict(zip(unique_labels, label_counts))}")
 
-        # # 🔹 임계값 튜닝
-        # best_threshold = 0.5
-        # best_f1 = 0.0
-        # # threshold 튜닝 루프 직전
-        # print("예측 확률 샘플:", all_probs[:10])
-        # print("정답 레이블 샘플:", all_labels[:10])
-        # for t in np.arange(0.1, 0.9, 0.05):
-        #     preds = (all_probs > t).astype(int)
-        #     f1 = f1_score(all_labels, preds)
-        #     print(f"[Threshold: {t:.2f}] F1: {f1:.4f}")  # 🔍 F1 변화 확인
-        #     if f1 > best_f1:
-        #         best_f1 = f1
-        #         best_threshold = t
-        # val_f1 = best_f1
-        # # 기존 val_f1 계산 뒤에 추가
-        # cm = confusion_matrix(all_labels, (all_probs > best_threshold).astype(int))
+        # Threshold 0.5 고정으로 F1 계산
+        val_preds = (all_probs > 0.5).astype(int)
+        val_f1 = f1_score(all_labels, val_preds)
+        cm = confusion_matrix(all_labels, val_preds)
 
-        # plt.figure(figsize=(6,5))
-        # sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=[0,1], yticklabels=[0,1])
-        # plt.xlabel("Predicted Label")
-        # plt.ylabel("True Label")
-        # plt.title("Confusion Matrix")
-        # plt.show()
-        print(f"Epoch [{epoch+1}/{num_epochs}] Train Loss : {avg_train_loss}, Val Loss: {avg_val_loss:.4f}")
+        plt.figure(figsize=(6,5))
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=[0,1], yticklabels=[0,1])
+        plt.xlabel("Predicted Label")
+        plt.ylabel("True Label")
+        plt.title(f"Confusion Matrix - Epoch {epoch+1}")
+        plt.show()
+
         plt.hist(all_probs[all_labels == 1], bins=50, alpha=0.7, label="Positive")
         plt.hist(all_probs[all_labels == 0], bins=50, alpha=0.7, label="Negative")
         plt.title("Sigmoid Output Distribution")
@@ -157,19 +152,23 @@ def train():
         plt.legend()
         plt.show()
 
-
-        print(f"Epoch [{epoch+1}/{num_epochs}] Val Loss: {avg_val_loss:.4f}, F1: {val_f1:.4f}, Best Threshold: {best_threshold:.2f}")
+        print(f"Epoch [{epoch+1}/{num_epochs}] Train Loss: {avg_train_loss:.4f}, Val Loss: {avg_val_loss:.4f}, Val F1: {val_f1:.4f}")
         writer.add_scalar('Loss/train', avg_train_loss, epoch)
         writer.add_scalar('Loss/validation', avg_val_loss, epoch)
+        writer.add_scalar('F1/validation', val_f1, epoch)
 
         scheduler.step(avg_val_loss)
 
-        if avg_val_loss < best_val_loss:  # ✅
+        if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
             patience_counter = 0
-            torch.save(model.state_dict(), 'best_model.pth')  # 모델 저장
+            torch.save(model.state_dict(), os.path.normpath(r"C:/Users/user/Desktop/brainbuddy_AI/StudentEngagement/best_model.pth"))
         else:
             patience_counter += 1
+
+        if patience_counter >= patience:
+            print(f"Early stopping triggered after {epoch+1} epochs.")
+            break
 
         # Overfitting detection
         if avg_train_loss < prev_train_loss and val_f1 < prev_val_f1:
@@ -180,10 +179,6 @@ def train():
 
         if overfit_counter >= 3:
             print("과적합 판단으로 조기 종료합니다.")
-            break
-
-        if patience_counter >= patience:
-            print(f"Early stopping triggered after {epoch+1} epochs.")
             break
 
         prev_val_f1 = val_f1
