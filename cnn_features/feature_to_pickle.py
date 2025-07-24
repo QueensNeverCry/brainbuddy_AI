@@ -3,14 +3,11 @@ import cv2
 import torch
 import pickle
 from tqdm import tqdm
-import mediapipe as mp
 from torchvision import transforms
 from models.cnn_encoder import CNNEncoder
-from models.face_crop import crop_face
 import multiprocessing
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
-mp_face_detection = mp.solutions.face_detection
 
 transform = transforms.Compose([
     transforms.ToPILImage(),
@@ -49,15 +46,14 @@ def extract_features_from_folder(args):
     img_paths = [os.path.join(frame_folder, f) for f in img_files[:T]]
     frames = []
 
-    with mp_face_detection.FaceDetection(model_selection=0, min_detection_confidence=0.5) as face_detector:
-        for path in img_paths:
-            img = cv2.imread(path)
-            if img is None:
-                load_fail_count += 1
-                return None
-            face_crop = crop_face(img, face_detector)
-            tensor = transform(face_crop)
-            frames.append(tensor)
+    for path in img_paths:
+        img = cv2.imread(path)
+        if img is None:
+            load_fail_count += 1
+            return None
+        # 얼굴 크롭 제거 → 이미지 그대로 transform 적용
+        tensor = transform(img)
+        frames.append(tensor)
 
     frames_tensor = torch.stack(frames).unsqueeze(0).to(device)
     features = model(frames_tensor).squeeze(0).cpu()
@@ -67,7 +63,6 @@ def extract_features_from_folder(args):
 
 
 def save_features_as_pkl(dataset_link, save_path, device_str="cuda", T=100, num_workers=4):
-    # 각 프로세스에 전달할 인자 튜플 리스트 만들기
     args_list = [(frame_folder, label, device_str, T) for frame_folder, label in dataset_link]
 
     all_features = []
@@ -107,16 +102,12 @@ def save_features_as_pkl(dataset_link, save_path, device_str="cuda", T=100, num_
 
 if __name__ == "__main__":
     import sys
-
-    # 멀티프로세싱 관련 안전장치 (특히 Windows에서 중요)
     multiprocessing.freeze_support()
 
     with open("preprocess2/pickle_labels/train/20_01.pkl", "rb") as f:
         dataset_link = pickle.load(f)
 
-    # CPU 코어 수 제한 (GPU가 하나라면 너무 많이 돌리지 말자)
     max_workers = min(multiprocessing.cpu_count(), 4)
-    # GPU 하나만 사용한다고 가정 (cuda:0)
     device_str = "cuda:0" if torch.cuda.is_available() else "cpu"
 
     save_features_as_pkl(
