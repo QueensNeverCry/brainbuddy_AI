@@ -3,11 +3,11 @@ from torch.utils.data import Dataset
 
 class CNNFeatureDataset(Dataset):
     def __init__(self, pkl_paths):
-        self.features=[]
-        self.labels=[]
+        self.features = []
+        self.labels = []
 
-        for pkl_path in pkl_paths :
-            with open(pkl_path,"rb") as f :
+        for pkl_path in pkl_paths:
+            with open(pkl_path, "rb") as f:
                 data = pickle.load(f)
             self.features.extend(data['features'])
             self.labels.extend(data['labels'])
@@ -17,6 +17,6 @@ class CNNFeatureDataset(Dataset):
         return len(self.labels)
 
     def __getitem__(self, idx):
-        feature = self.features[idx].float() #각 요소가 이미 torch.Tensor 형태
+        feature = self.features[idx].float()
         label = self.labels[idx].long()
         return feature, label
