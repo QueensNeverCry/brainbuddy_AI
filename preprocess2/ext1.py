@@ -26,7 +26,7 @@ def extract_frames(video_path, local_output_base, segment_duration=10, target_fp
             if len(jpg_files) >= max_frames:
                 print(f"✅ 세그먼트 {segment_idx} 이미 {len(jpg_files)}장 존재 → 건너뜀.")
                 continue
-            else: #300장이 아니면 지우고 덮어씀
+            else: #100장이 아니면 지우고 덮어씀
                 print(f"♻️ 세그먼트 {segment_idx} 프레임 {len(jpg_files)}장 → 덮어쓰기 위해 삭제 후 재처리")
                 shutil.rmtree(local_segment_dir)
 
@@ -76,9 +76,9 @@ def extract_frames(video_path, local_output_base, segment_duration=10, target_fp
 
 
 if __name__ == "__main__":
-    for i in [11]:
-        video_folder = f"C:/Users/user/Downloads/20_03_1/{i}"
-        local_root = r"C:/AIhub_frames/train"  # ✅ 로컬 저장 위치
+    for i in range(10,20):
+        video_folder = f"C:/Users/user/Downloads/109.학습태도 및 성향 관찰 데이터/3.개방데이터/1.데이터/Validation/01.원천데이터/vs_20/20_03/{i}"
+        local_root = r"C:/f/valid/20_03"  # ✅ 로컬 저장 위치
 
         video_files = sorted([
             f for f in os.listdir(video_folder)
