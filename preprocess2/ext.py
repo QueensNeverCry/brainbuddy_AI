@@ -78,9 +78,9 @@ def extract_frames(video_path, local_output_base, face_detector, segment_duratio
 if __name__ == "__main__":
     mp_face_detection = mp.solutions.face_detection
     face_detector = mp_face_detection.FaceDetection(model_selection=1, min_detection_confidence=0.5)
-    for i in range(1,10):
-        video_folder = f"C:/Users/user/Downloads/109.학습태도 및 성향 관찰 데이터/3.개방데이터/1.데이터/Validation/01.원천데이터/vs_20/20_01/{i}"
-        local_root = r"C:/f/valid/20_01"  # ✅ 로컬 저장 위치
+    for i in range(35,40):
+        video_folder = f"C:/Users/user/Downloads/109.학습태도 및 성향 관찰 데이터/3.개방데이터/1.데이터/Training/01.원천데이터/ts_10/test/{i}"
+        local_root = r"C:/f/test/10_01"  # ✅ 로컬 저장 위치
 
         video_files = sorted([
             f for f in os.listdir(video_folder)
