@@ -9,16 +9,14 @@ def add_gaussian_noise(sequence, noise_level=0.01):
 def augment_sequence(sequence, num_augment=5):
     augmented = []
     for _ in range(num_augment):
-        # 1) 노이즈 추가
         noisy_seq = add_gaussian_noise(np.array(sequence))
-        # 2) 시퀀스 순서 약간 섞기 (옵션)
-        # 예) 앞뒤 10% 구간만 랜덤 섞기
         length = len(noisy_seq)
         idx_range = int(length * 0.1)
         idxs = list(range(length))
         np.random.shuffle(idxs[:idx_range])
         np.random.shuffle(idxs[-idx_range:])
         shuffled_seq = noisy_seq[idxs]
+        shuffled_seq = shuffled_seq.astype(np.float32)
         augmented.append(shuffled_seq)
     return augmented
 
@@ -39,9 +37,9 @@ def augment_features(input_pkl, output_pkl, augment_num_per_seq=3):
     for folder_name, segments in data.items():
         augmented_segments = []
         for segment in segments:
-            augmented_segments.append(segment)  # 원본 시퀀스 유지
+            augmented_segments.append(segment)  # 원본 유지
             aug_seqs = augment_sequence(segment, num_augment=augment_num_per_seq)
-            augmented_segments.extend(aug_seqs)  # 증강 시퀀스 추가
+            augmented_segments.extend(aug_seqs)
         augmented_data[folder_name] = augmented_segments
 
     save_pickle(augmented_data, output_pkl)
