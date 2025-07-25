@@ -30,8 +30,8 @@ def create_labels_from_augmented_pickle(pickle_path, save_path):
     print(f"총 샘플 수: {len(labels)}")
 
 if __name__ == "__main__":
-    pickle_path = r"C:/Users/user/Desktop/brainbuddy_AI/StudentEngagement/features/train/train_features_aug.pkl"
-    save_path = r"C:/Users/user/Desktop/brainbuddy_AI/StudentEngagement/label/train_labels_aug.pkl"
+    pickle_path = r"C:/Users/user/Desktop/brainbuddy_AI/StudentEngagement/features/test/test_features_aug.pkl"
+    save_path = r"C:/Users/user/Desktop/brainbuddy_AI/StudentEngagement/label/test_labels_aug.pkl"
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
     create_labels_from_augmented_pickle(pickle_path, save_path)
