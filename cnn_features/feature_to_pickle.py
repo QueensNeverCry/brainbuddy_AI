@@ -104,15 +104,15 @@ if __name__ == "__main__":
     import sys
     multiprocessing.freeze_support()
 
-    with open("preprocess2/pickle_labels/valid/20_03.pkl", "rb") as f:
+    with open("C:/Users/user/Desktop/brainbuddy_AI/preprocess2/pickle_labels/test/10_01.pkl", "rb") as f:
         dataset_link = pickle.load(f)
 
-    max_workers = min(multiprocessing.cpu_count(), 4)
+    max_workers = min(multiprocessing.cpu_count(), 4) 
     device_str = "cuda:0" if torch.cuda.is_available() else "cpu"
 
     save_features_as_pkl(
         dataset_link,
-        save_path="cnn_features/features/valid_20_03.pkl",
+        save_path="C:/Users/user/Desktop/brainbuddy_AI/cnn_features/features/test_10_01.pkl",
         device_str=device_str,
         T=100,
         num_workers=max_workers
