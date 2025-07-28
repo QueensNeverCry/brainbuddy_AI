@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
-from models.engagement_model import EngagementModel
+from models.simple_engagement_model import SimpleEngagementModel
 from feature_dataset import CNNFeatureDataset
 from tqdm import tqdm
 import random
@@ -11,6 +11,31 @@ from torch.utils.tensorboard import SummaryWriter
 from sklearn.metrics import f1_score, confusion_matrix
 import matplotlib.pyplot as plt
 import seaborn as sns
+import torch.nn.functional as F
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+class FocalLoss(nn.Module):
+    def __init__(self, alpha=0.25, gamma=2.0, reduction='mean'):
+        super().__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+        self.reduction = reduction
+
+    def forward(self, inputs, targets):
+        BCE_loss = F.binary_cross_entropy_with_logits(inputs, targets, reduction='none')
+        probs = torch.sigmoid(inputs)
+        pt = torch.where(targets == 1, probs, 1 - probs)
+        loss = self.alpha * (1 - pt) ** self.gamma * BCE_loss
+
+        if self.reduction == 'mean':
+            return loss.mean()
+        elif self.reduction == 'sum':
+            return loss.sum()
+        else:
+            return loss
 
 
 def set_seed(seed=42):
@@ -42,8 +67,9 @@ def train():
     train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, pin_memory=True,num_workers=2)
     val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False, pin_memory=True,num_workers=2)
 
-    model = EngagementModel().to(device)
-    criterion = nn.BCEWithLogitsLoss()
+    model = SimpleEngagementModel().to(device)
+    #criterion = nn.BCEWithLogitsLoss()
+    criterion = FocalLoss(alpha=0.75,gamma=2.0)#라벨 0에 더 집중하도록.
     optimizer = optim.Adam(model.parameters(), lr=1e-4, weight_decay=1e-5) # 과적합 방지용 : weight decay 추가
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=6)# 스케쥴러로 lr 조정
     writer = SummaryWriter(log_dir='./runs/engagement_experiment')
