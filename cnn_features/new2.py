@@ -109,7 +109,7 @@ if __name__ == "__main__":
     # 멀티프로세싱 관련 안전장치 (특히 Windows에서 중요)
     multiprocessing.freeze_support()
 
-    with open("preprocess2/pickle_labels/train/20_01.pkl", "rb") as f:
+    with open("C:/Users/user/Downloads/Student-engagement-dataset/Student-engagement-dataset/pickle/engagement_segments.pkl", "rb") as f:
         dataset_link = pickle.load(f)
 
     # CPU 코어 수 제한 (GPU가 하나라면 너무 많이 돌리지 말자)
@@ -119,7 +119,7 @@ if __name__ == "__main__":
 
     save_features_as_pkl(
         dataset_link,
-        save_path="cnn_features/features/train_20_01_2.pkl",
+        save_path="cnn_features/features/eng.pkl",
         device_str=device_str,
         T=100,
         num_workers=max_workers
