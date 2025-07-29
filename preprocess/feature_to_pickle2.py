@@ -109,18 +109,28 @@ if __name__ == "__main__":
     # 멀티프로세싱 관련 안전장치 (특히 Windows에서 중요)
     multiprocessing.freeze_support()
 
-    with open("C:/Users/user/Downloads/Student-engagement-dataset/Student-engagement-dataset/pickle/engagement_segments.pkl", "rb") as f:
-        dataset_link = pickle.load(f)
+    # with open("C:/KSEB/brainbuddy_AI/preprocess/train_link.pkl", "rb") as f:
+    #     train_link = pickle.load(f)
+    with open("C:/KSEB/brainbuddy_AI/preprocess/val_link.pkl", "rb") as f:
+        val_link = pickle.load(f)
 
     # CPU 코어 수 제한 (GPU가 하나라면 너무 많이 돌리지 말자)
     max_workers = min(multiprocessing.cpu_count(), 4)
     # GPU 하나만 사용한다고 가정 (cuda:0)
     device_str = "cuda:0" if torch.cuda.is_available() else "cpu"
 
+    # save_features_as_pkl(
+    #     train_link,
+    #     save_path="cnn_features/features/D_train.pkl",
+    #     device_str=device_str,
+    #     T=100,
+    #     num_workers=max_workers
+    # )
     save_features_as_pkl(
-        dataset_link,
-        save_path="cnn_features/features/eng.pkl",
+        val_link,
+        save_path="cnn_features/features/D_val.pkl",
         device_str=device_str,
         T=100,
         num_workers=max_workers
     )
+
