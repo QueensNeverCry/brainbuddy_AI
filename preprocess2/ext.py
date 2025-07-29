@@ -66,7 +66,6 @@ def extract_frames(video_path, local_output_base, face_detector, segment_duratio
                     success = cv2.imwrite(frame_path, cropped_bgr, [cv2.IMWRITE_JPEG_QUALITY, 75])
                     if success:
                         saved += 1
-
             count += 1
 
         print(f"✅ 세그먼트 {segment_idx} 저장 완료 ({saved}장)")
