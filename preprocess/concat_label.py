@@ -53,11 +53,10 @@ def match_train_and_label(train_txt_path, data_root,label_csv_path1,label_csv_pa
     return dataset_link
 
 if __name__ == "__main__":
-    train_txt_path = "../DataSet/Train.txt"
-    valid_txt_path = "../DataSet/Validation.txt"
-
-    save_train = "C:/KSEB/brainbuddy_AI/preprocess/frames/train"
-    save_valid = "C:/KSEB/brainbuddy_AI/preprocess/frames/validation"
+    train_txt_path = "C:/Users/user/Desktop/KSEB/Dataset_/DAiSEE/DataSet/Train.txt"
+    valid_txt_path = "C:/Users/user/Desktop/KSEB/Dataset_/DAiSEE/DataSet/Validation.txt"
+    save_train = "C:/DAiSEE/train"
+    save_valid = "C:/DAiSEE/valid"
     
     train_label_csv = "./pre_labels/pre_TrainLabels.csv"
     val_label_csv = "./pre_labels/pre_ValidationLabels.csv"
