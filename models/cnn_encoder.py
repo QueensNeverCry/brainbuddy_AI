@@ -11,25 +11,22 @@ from torchvision.models import mobilenet_v2, MobileNet_V2_Weights
 class CNNEncoder(nn.Module):
     def __init__(self, cnn_out_dim=1280):
         super().__init__()
-        weights = MobileNet_V2_Weights.DEFAULT
-        mobilenet = mobilenet_v2(weights=weights)
-
-        # CNN feature extractor (pooling 전까지)
-        self.cnn = mobilenet.features
-        self.pool = nn.AdaptiveAvgPool2d(1)  # output: (1280, 1, 1)
+        mobilenet = mobilenet_v2(pretrained=True)
+        self.cnn = mobilenet.features #분류기 제외
+        self.avgpool = nn.AdaptiveAvgPool2d(1)  # output: (1280, 1, 1)
 
     def forward(self, x):
         """
-        x: (batch_size, 300, 3, 224, 224)
-        return: (batch_size, 300, cnn_out_dim)
+        x: (batch_size, 100, 3, 224, 224)
+        return: (batch_size, 100, cnn_out_dim)
         """
         B, T, C, H, W = x.shape
-        x = x.view(B * T, C, H, W)               # (B*T, 3, 224, 224)
+        x = x.view(B * T, C, H, W)           # (B*T, 3, 224, 224)
 
         with torch.no_grad():  # feature 추출만 → freeze
             features = self.cnn(x)               # (B*T, 1280, h, w)
-            features = self.pool(features)       # (B*T, 1280, 1, 1)
+            features = self.avgpool(features)    # feature map 을 avg pooling하여 1x1로 축소 -> (B*T, 1280, 1, 1)
 
-        features = features.view(B, T, -1)       # (B, T, 1280)
+        features = features.view(B, T, -1)   # (B, T, 1280) : 다시 시간 순서로 복원
         return features
     
