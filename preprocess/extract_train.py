@@ -64,7 +64,6 @@ def extract_all_from_train_txt(train_txt_path, video_root, output_root, face_det
     print(f"총 영상 파일 수: {total_videos}")
     print(f"프레임 추출 완료된 영상 수: {processed_videos}")
 
-
 if __name__ == "__main__":
     mp_face_detection = mp.solutions.face_detection
     face_detector = mp_face_detection.FaceDetection(model_selection=1, min_detection_confidence=0.5)
