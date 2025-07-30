@@ -3,10 +3,10 @@ import json
 import pickle
 
 label_base_dir = os.path.normpath(
-    r"C:\Users\user\Downloads\109.학습태도 및 성향 관찰 데이터\3.개방데이터\1.데이터\Training\02.라벨링데이터\TL_10_01"
+    r"C:/Users/user/Downloads/109.학습태도 및 성향 관찰 데이터/3.개방데이터/1.데이터/Training/02.라벨링데이터/TL_20_03"
 )
-train_base_dir = os.path.normpath(r"C:/f/test/10_01")
-output_pickle_path = os.path.normpath("pickle_labels/test/10_01.pkl")
+train_base_dir = os.path.normpath(r"C:/AIhub_frames/train")
+output_pickle_path = os.path.normpath("pickle_labels/train/20_01.pkl")
 
 label_texts = set()
 label_map = {
