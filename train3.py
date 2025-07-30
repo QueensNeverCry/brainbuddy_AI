@@ -1,12 +1,15 @@
+# focal loss with no early stopping
+# ... (기존 import 및 함수 정의는 그대로)
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
+from focal_loss_train import FocalLoss
 from models.simple_engagement_model import SimpleEngagementModel
 from feature_dataset import CNNFeatureDataset
 from tqdm import tqdm
 import random
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, random_split
 from torch.utils.tensorboard import SummaryWriter
 from sklearn.metrics import f1_score, confusion_matrix
 import matplotlib.pyplot as plt
@@ -21,19 +24,6 @@ def set_seed(seed=42):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-class FocalLoss(nn.Module):
-    def __init__(self, gamma=2.0, alpha=0.5):
-        super().__init__()
-        self.gamma = gamma
-        self.alpha = alpha
-
-    def forward(self, inputs, targets):
-        bce_loss = nn.functional.binary_cross_entropy_with_logits(inputs, targets, reduction='none')
-        probs = torch.sigmoid(inputs)
-        pt = probs * targets + (1 - probs) * (1 - targets)
-        loss = self.alpha * (1 - pt) ** self.gamma * bce_loss
-        return loss.mean()
-
 def train():
     set_seed(42)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -43,7 +33,6 @@ def train():
         "./cnn_features/features/train_20_01.pkl",
         "./cnn_features/features/train_20_03.pkl",
         "./cnn_features/features/D_train.pkl",
-        "./cnn_features/features/eng.pkl"
     ])
     val_dataset = CNNFeatureDataset([
         "./cnn_features/features/valid_20_01.pkl",
@@ -62,8 +51,6 @@ def train():
 
     num_epochs = 20
     best_val_loss = float('inf')
-    patience = 6
-    patience_counter = 0
     global_step = 0
 
     for epoch in range(num_epochs):
@@ -131,13 +118,13 @@ def train():
         val_f1 = f1_score(all_labels, val_preds)
         val_acc = (val_preds == all_labels).mean()
 
-        cm = confusion_matrix(all_labels, val_preds)
-        plt.figure(figsize=(6, 5))
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=[0, 1], yticklabels=[0, 1])
-        plt.xlabel("Predicted")
-        plt.ylabel("True")
-        plt.title("Validation Confusion Matrix")
-        plt.show()
+        # cm = confusion_matrix(all_labels, val_preds)
+        # plt.figure(figsize=(6, 5))
+        # sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=[0, 1], yticklabels=[0, 1])
+        # plt.xlabel("Predicted")
+        # plt.ylabel("True")
+        # plt.title("Validation Confusion Matrix")
+        # plt.show()
 
         print(f"Epoch [{epoch+1}/{num_epochs}] Loss: {avg_train_loss:.4f}, Acc: {train_acc:.4f}, Val Loss: {avg_val_loss:.4f}, Val Acc: {val_acc:.4f}, Val F1: {val_f1:.4f}")
 
@@ -151,13 +138,7 @@ def train():
 
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
-            patience_counter = 0
-            torch.save(model.state_dict(), 'best_model.pth')
-        else:
-            patience_counter += 1
-            if patience_counter >= patience:
-                print("Early stopping triggered.")
-                break
+            torch.save(model.state_dict(), 'best_model_2.pth')
 
     writer.close()
     print("Training complete. Best validation loss:", best_val_loss)
