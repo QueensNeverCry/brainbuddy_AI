@@ -59,8 +59,6 @@ class VideoFolderDataset(Dataset):
         return video, torch.tensor(label, dtype=torch.float32)
 
 
-
-
 from sklearn.metrics import confusion_matrix, classification_report
 import numpy as np
 
@@ -147,7 +145,7 @@ def main():
     ]
     val_pkl_files = [
         "C:/KSEB/brainbuddy_AI/preprocess2/pickle_labels/valid/20_01.pkl",
-        "C:/KSEB/brainbuddy_AI/preprocess2/pickle_labels/valid/20_01.pkl",
+        "C:/KSEB/brainbuddy_AI/preprocess2/pickle_labels/valid/20_03.pkl",
         "C:/KSEB/brainbuddy_AI/preprocess/val_link.pkl"
     ]
 

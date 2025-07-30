@@ -2,11 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
-<<<<<<< HEAD
-from pathlib import Path
-=======
 from models.engagement_model import EngagementModel
->>>>>>> origin/main
 from feature_dataset import CNNFeatureDataset
 from tqdm import tqdm
 import random
@@ -15,36 +11,6 @@ from torch.utils.data import DataLoader, random_split
 from sklearn.metrics import f1_score, confusion_matrix
 import matplotlib.pyplot as plt
 
-<<<<<<< HEAD
-# BiLSTM + Attention 모델
-class Attention(nn.Module):
-    def __init__(self, hidden_size):
-        super().__init__()
-        self.attn = nn.Linear(hidden_size * 2, 1)
-
-    def forward(self, lstm_out):
-        weights = torch.softmax(self.attn(lstm_out), dim=1)
-        context = torch.sum(weights * lstm_out, dim=1)
-        return context
-
-class EngagementModel(nn.Module):
-    def __init__(self, input_size=1280, hidden_size=256, output_size=1):
-        super().__init__()
-        self.bilstm = nn.LSTM(input_size, hidden_size, batch_first=True, bidirectional=True)
-        self.attn = Attention(hidden_size)
-        self.norm = nn.LayerNorm(hidden_size * 2)
-        self.dropout = nn.Dropout(0.3)
-        self.fc = nn.Linear(hidden_size * 2, output_size)
-
-    def forward(self, x):
-        lstm_out, _ = self.bilstm(x)
-        context = self.attn(lstm_out)
-        context = self.norm(context)
-        context = self.dropout(context)
-        out = self.fc(context)
-        return out
-=======
->>>>>>> origin/main
 
 def set_seed(seed=42):
     random.seed(seed)
@@ -62,40 +28,6 @@ def train():
     else:
         print("GPU not available. Using CPU.")
 
-<<<<<<< HEAD
-    # 프로젝트 루트 기준 경로 설정
-    base_path = Path(__file__).parent
-
-    # Feature + Label 포함된 피클 파일 자동 탐색
-    feature_dir = base_path / "cnn_features" / "features"
-    pkl_paths = sorted(feature_dir.glob("*.pkl"))  # 모든 .pkl 파일 로드
-    if not pkl_paths:
-        raise FileNotFoundError(f"No .pkl files found in {feature_dir}")
-    dataset = CNNFeatureDataset([str(p) for p in pkl_paths])
-
-    total_size = len(dataset)
-    val_size = int(total_size * 0.2)
-    train_size = total_size - val_size
-
-    train_dataset, val_dataset = random_split(
-        dataset,
-        [train_size, val_size],
-        generator=torch.Generator().manual_seed(42)
-    )
-
-    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, pin_memory=True, num_workers=2)
-    val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False, pin_memory=True, num_workers=2)
-
-    model = EngagementModel().to(device)
-    criterion = nn.BCEWithLogitsLoss()
-    optimizer = optim.Adam(model.parameters(), lr=1e-4)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3)
-    # writer = SummaryWriter(log_dir='./runs/engagement_experiment')
-
-    num_epochs = 20
-    best_val_loss = float('inf')
-    patience = 3
-=======
     train_dataset = CNNFeatureDataset([
         "./cnn_features/features_30/train_20_01.pkl",
         "./cnn_features/features_30/train_20_03.pkl",
@@ -120,7 +52,6 @@ def train():
     num_epochs = 20
     best_val_loss = float('inf') 
     patience = 6
->>>>>>> origin/main
     patience_counter = 0
     global_step = 0
 
@@ -224,7 +155,6 @@ def train():
         writer.add_scalar('Loss/train', avg_train_loss, epoch)
         writer.add_scalar('Loss/validation', avg_val_loss, epoch)
 
->>>>>>> origin/main
         scheduler.step(avg_val_loss)
 
         if avg_val_loss < best_val_loss:
