@@ -50,6 +50,7 @@ preprocess2/AIHub_frames/
 AIHub/
 DAiSEE/
 cnn_features/features/
+cnn_features/features_30/
 # ▶ PyTorch & Checkpoints
 *.pt
 *.pth

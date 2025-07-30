@@ -1,9 +1,10 @@
 import torch.nn as nn
-import torch
+import torch.nn.init as init
 
 class SimpleEngagementModel(nn.Module):
     def __init__(self, input_size=1280, proj_size=256, hidden_size=128, output_size=1):
         super().__init__()
+        self.norm = nn.LayerNorm(input_size)
         self.proj = nn.Linear(input_size, proj_size)
         self.dropout1 = nn.Dropout(0.2)
 
@@ -12,7 +13,11 @@ class SimpleEngagementModel(nn.Module):
 
         self.fc = nn.Linear(hidden_size, output_size)
 
+        init.xavier_uniform_(self.fc.weight)
+        self.fc.bias.data.fill_(0.0)
+
     def forward(self, x):  # x: (B, T, 1280)
+        x = self.norm(x)
         x = self.proj(x)                      # (B, T, 256)
         x = self.dropout1(x)
 

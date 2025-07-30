@@ -1,13 +1,13 @@
+import os
 import pickle
 
 # 파일 불러오기
-with open('./cnn_features/features/train_20_01.pkl', 'rb') as f:
+with open('C:/KSEB/brainbuddy_AI/preprocess2/pickle_labels/train/20_01.pkl', 'rb') as f:
     data = pickle.load(f)
+print(f"📦 원래 데이터 개수 (pkl 내): {len(data)}")
+missing = []
+for path, _ in data:
+    if not os.path.isdir(path):
+        missing.append(path)
 
-# 라벨 확인 - 예를 들어 'label' 키가 있을 경우
-labels = data['labels']  # 혹은 data[1], data['y'] 등 구조에 따라 다름
-
-# 라벨이 모두 1인지 확인
-all_ones = all(label == 1 for label in labels)
-
-print("모든 라벨이 1인가요?", all_ones)
+print(f"❌ 존재하지 않는 폴더 수: {len(missing)}")

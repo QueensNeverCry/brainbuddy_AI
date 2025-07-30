@@ -30,15 +30,14 @@ def train():
         print("GPU not available. Using CPU.")
 
     train_dataset = CNNFeatureDataset([
-        "./cnn_features/features/train_20_01.pkl",
-        "./cnn_features/features/train_20_03.pkl",
-        "./cnn_features/features/D_train.pkl",
-        "./cnn_features/features/eng.pkl"
+        "./cnn_features/features_30/train_20_01.pkl",
+        "./cnn_features/features_30/train_20_03.pkl",
+        #"./cnn_features/features_30/D_train.pkl",
     ])
     val_dataset = CNNFeatureDataset([
-        "./cnn_features/features/valid_20_01.pkl",
-        "./cnn_features/features/valid_20_03.pkl",
-        "./cnn_features/features/D_val.pkl"
+        "./cnn_features/features_30/valid_20_01.pkl",
+        "./cnn_features/features_30/valid_20_03.pkl",
+        #"./cnn_features/features_30/D_val.pkl"
     ])
     
     # DataLoader 설정
@@ -75,6 +74,16 @@ def train():
             running_loss += loss.item()
             writer.add_scalar('Loss/train_batch', loss.item(), global_step)
             global_step += 1
+        all_train_labels = []
+
+        #train 라벨 분포 출력해보기
+        for _, labels in train_loader:
+            all_train_labels.append(labels.view(-1).cpu())
+
+        all_train_labels = torch.cat(all_train_labels).numpy()
+        unique, counts = np.unique(all_train_labels, return_counts=True)
+        print(f"[학습 데이터 라벨 분포] {dict(zip(unique, counts))}")
+
 
         avg_train_loss = running_loss / len(train_loader)
         #print(f"Epoch [{epoch+1}/{num_epochs}] Train Loss: {avg_train_loss:.4f}")
@@ -105,45 +114,44 @@ def train():
         unique_labels, label_counts = np.unique(all_labels, return_counts=True)
         print(f"[검증 데이터 레이블 분포] {dict(zip(unique_labels, label_counts))}")
 
-        # 🔹 임계값 튜닝
-        best_threshold = 0.5
-        best_f1 = 0.0
-        # threshold 튜닝 루프 직전
-        print("예측 확률 샘플:", all_probs[:10])
-        print("정답 레이블 샘플:", all_labels[:10])
-        for t in np.arange(0.1, 0.9, 0.05):
-            preds = (all_probs > t).astype(int)
-            f1 = f1_score(all_labels, preds)
-            print(f"[Threshold: {t:.2f}] F1: {f1:.4f}")  # 🔍 F1 변화 확인
-            if f1 > best_f1:
-                best_f1 = f1
-                best_threshold = t
-        val_f1 = best_f1
+        # # 🔹 임계값 튜닝
+        # best_threshold = 0.5
+        # best_f1 = 0.0
+        # # threshold 튜닝 루프 직전
+        # print("예측 확률 샘플:", all_probs[:10])
+        # print("정답 레이블 샘플:", all_labels[:10])
+        # for t in np.arange(0.1, 0.9, 0.05):
+        #     preds = (all_probs > t).astype(int)
+        #     f1 = f1_score(all_labels, preds)
+        #     print(f"[Threshold: {t:.2f}] F1: {f1:.4f}")  # 🔍 F1 변화 확인
+        #     if f1 > best_f1:
+        #         best_f1 = f1
+        #         best_threshold = t
+        # val_f1 = best_f1
         # 기존 val_f1 계산 뒤에 추가
-        cm = confusion_matrix(all_labels, (all_probs > best_threshold).astype(int))
+        # cm = confusion_matrix(all_labels, (all_probs > best_threshold).astype(int))
 
-        plt.figure(figsize=(6,5))
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=[0,1], yticklabels=[0,1])
-        plt.xlabel("Predicted Label")
-        plt.ylabel("True Label")
-        plt.title("Confusion Matrix")
-        plt.show()
+        # plt.figure(figsize=(6,5))
+        # sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=[0,1], yticklabels=[0,1])
+        # plt.xlabel("Predicted Label")
+        # plt.ylabel("True Label")
+        # plt.title("Confusion Matrix")
+        # plt.show()
         
         print(f"Epoch [{epoch+1}/{num_epochs}] Train Loss : {avg_train_loss:.4f}, Val Loss: {avg_val_loss:.4f}")
-        plt.hist(all_probs[all_labels == 1], bins=50, alpha=0.7, label="Positive")
-        plt.hist(all_probs[all_labels == 0], bins=50, alpha=0.7, label="Negative")
-        plt.title("Sigmoid Output Distribution")
-        plt.xlabel("Predicted Probability")
-        plt.ylabel("Count")
-        plt.legend()
-        plt.show()
+        # plt.hist(all_probs[all_labels == 1], bins=50, alpha=0.7, label="Positive")
+        # plt.hist(all_probs[all_labels == 0], bins=50, alpha=0.7, label="Negative")
+        # plt.title("Sigmoid Output Distribution")
+        # plt.xlabel("Predicted Probability")
+        # plt.ylabel("Count")
+        # plt.legend()
+        # plt.show()
 
-        plt.hist(outputs.detach().cpu().numpy(), bins=100)
-        plt.title("Raw Logits Distribution")
-        plt.xlabel("Logit Value")
-        plt.ylabel("Count")
-        plt.show()
-
+        # plt.hist(outputs.detach().cpu().numpy(), bins=100)
+        # plt.title("Raw Logits Distribution")
+        # plt.xlabel("Logit Value")
+        # plt.ylabel("Count")
+        # plt.show()
 
         writer.add_scalar('Loss/train', avg_train_loss, epoch)
         writer.add_scalar('Loss/validation', avg_val_loss, epoch)
