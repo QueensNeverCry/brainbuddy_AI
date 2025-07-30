@@ -37,7 +37,13 @@ for root, _, files in os.walk(label_base_dir):
             try:
                 *prefix_parts, num_folder = filename.split("-")
                 folder_name = "-".join(prefix_parts)
-                train_path = os.path.normpath(os.path.join(train_base_dir, folder_name, f"segment_{num_folder}"))
+                segment_path = os.path.normpath(os.path.join(train_base_dir, folder_name, f"segment_{num_folder}"))
+
+                # ✅ 폴더 존재 여부 확인
+                if not os.path.isdir(segment_path):
+                    print(f"🚫 segment 폴더 없음: {segment_path}")
+                    skipped_count += 1
+                    continue
 
                 with open(json_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
@@ -46,7 +52,7 @@ for root, _, files in os.walk(label_base_dir):
                 label = label_map[label_text]
                 label_texts.add(label_text)
 
-                results.append((train_path, label))
+                results.append((segment_path, label))
                 parsed_count += 1
 
             except KeyError:
