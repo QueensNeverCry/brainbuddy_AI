@@ -6,10 +6,10 @@ from sklearn.metrics import classification_report, confusion_matrix
 import matplotlib.pyplot as plt
 import seaborn as sns
 from feature_dataset import CNNFeatureDataset
-from models.simple_engagement_model import SimpleEngagementModel
+from models.engagement_model import EngagementModel
 
-def load_model(model_path='best_model.pth', device='cpu'):
-    model = SimpleEngagementModel() 
+def load_model(model_path='best_model_2.pth', device='cpu'):
+    model = EngagementModel() 
     state_dict = torch.load(model_path, map_location=device)
     print("[INFO] Loaded parameter count:", len(state_dict))
     print("[INFO] Example parameter keys:", list(state_dict.keys())[:5])

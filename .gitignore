@@ -56,7 +56,7 @@ cnn_features/features_30/
 *.pth
 checkpoints/
 runs/
-
+log/
 # ▶ Environment & secrets
 *.env
 .env.*
