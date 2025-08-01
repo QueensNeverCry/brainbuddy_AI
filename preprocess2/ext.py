@@ -23,8 +23,7 @@ def extract_frames(video_path, local_output_base, face_detector, segment_duratio
 
     print(f"🎬 세그먼트 수: {num_segments}, Interval: {frame_interval}프레임마다 저장")
 
-    for segment_idx in range(num_segments):
-        print(f"segment {segment_idx} 시작")
+    for segment_idx in tqdm(range(num_segments), desc="100프레임 단위로 분리"):
         local_segment_dir = os.path.normpath(os.path.join(local_output_base, f"segment_{segment_idx}"))
 
         if os.path.exists(local_segment_dir):
@@ -32,7 +31,7 @@ def extract_frames(video_path, local_output_base, face_detector, segment_duratio
             if len(jpg_files) >= max_frames:
                 print(f"✅ 세그먼트 {segment_idx} 이미 {len(jpg_files)}장 존재 → 건너뜀.")
                 continue
-            else:
+            else: #300장이 아니면 지우고 덮어씀
                 print(f"♻️ 세그먼트 {segment_idx} 프레임 {len(jpg_files)}장 → 덮어쓰기 위해 삭제 후 재처리")
                 shutil.rmtree(local_segment_dir)
 
@@ -70,7 +69,6 @@ def extract_frames(video_path, local_output_base, face_detector, segment_duratio
                     success = cv2.imwrite(frame_path, cropped_bgr, [cv2.IMWRITE_JPEG_QUALITY, 75])
                     if success:
                         saved += 1
-
             count += 1
 
         print(f"✅ 세그먼트 {segment_idx} 저장 완료 ({saved}장)")
@@ -82,9 +80,9 @@ def extract_frames(video_path, local_output_base, face_detector, segment_duratio
 if __name__ == "__main__":
     mp_face_detection = mp.solutions.face_detection
     face_detector = mp_face_detection.FaceDetection(model_selection=1, min_detection_confidence=0.5)
-    for i in range(1,10):
-        video_folder = f"C:/Users/user/Downloads/20_03_02/{i}"
-        local_root = r"C:/AIhub_frames/train/20_03_02"  # ✅ 로컬 저장 위치
+    for i in range(1,11):
+        video_folder = f"C:/Users/user/Downloads/109.학습태도 및 성향 관찰 데이터/3.개방데이터/1.데이터/Training/01.원천데이터/TS_20_01_2/{i}"
+        local_root = r"C:/AIhub_frames/train"  # ✅ 로컬 저장 위치
 
         video_files = sorted([
             f for f in os.listdir(video_folder)

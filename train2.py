@@ -2,41 +2,14 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
+from models.engagement_model import EngagementModel
 from feature_dataset import CNNFeatureDataset
 from tqdm import tqdm
 import random
 from torch.utils.data import DataLoader, random_split
-from torch.utils.tensorboard import SummaryWriter
+# from torch.utils.tensorboard import SummaryWriter  # Uncomment if tensorboard installed
 from sklearn.metrics import f1_score, confusion_matrix
 import matplotlib.pyplot as plt
-import seaborn as sns
-
-class Attention(nn.Module):
-    def __init__(self, hidden_size):
-        super().__init__()
-        self.attn = nn.Linear(hidden_size * 2, 1)
-
-    def forward(self, lstm_out):
-        weights = torch.softmax(self.attn(lstm_out), dim=1)
-        context = torch.sum(weights * lstm_out, dim=1)
-        return context
-
-class EngagementModel(nn.Module):
-    def __init__(self, input_size=1280, hidden_size=128, output_size=1):
-        super().__init__()
-        self.bilstm = nn.LSTM(input_size, hidden_size, batch_first=True, bidirectional=True)
-        self.attn = Attention(hidden_size)
-        self.norm = nn.LayerNorm(hidden_size * 2)
-        self.dropout = nn.Dropout(0.5)
-        self.fc = nn.Linear(hidden_size * 2, output_size)
-
-    def forward(self, x):
-        lstm_out, _ = self.bilstm(x)
-        context = self.attn(lstm_out)
-        context = self.norm(context)
-        context = self.dropout(context)
-        out = self.fc(context)
-        return out
 
 def set_seed(seed=42):
     random.seed(seed)
@@ -51,27 +24,30 @@ def train():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using {'GPU: ' + torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU'}")
 
-    dataset = CNNFeatureDataset([
-        "./cnn_features/features/train_20_01.pkl",
-        "./cnn_features/features/train_20_03.pkl"
+    train_dataset = CNNFeatureDataset([
+        "./cnn_features/features_30/train_20_01.pkl",
+        "./cnn_features/features_30/train_20_03.pkl",
+        #"./cnn_features/features_30/D_train.pkl",
     ])
-    val_size = int(len(dataset) * 0.2)
-    train_size = len(dataset) - val_size
-
-    train_dataset, val_dataset = random_split(dataset, [train_size, val_size], generator=torch.Generator().manual_seed(42))
-
-    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, pin_memory=True, num_workers=2)
-    val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False, pin_memory=True, num_workers=2)
+    val_dataset = CNNFeatureDataset([
+        "./cnn_features/features_30/valid_20_01.pkl",
+        "./cnn_features/features_30/valid_20_03.pkl",
+        #"./cnn_features/features_30/D_val.pkl"
+    ])
+    
+    # DataLoader 설정
+    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, pin_memory=True,num_workers=2)
+    val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False, pin_memory=True,num_workers=2)
 
     model = EngagementModel().to(device)
     criterion = nn.BCEWithLogitsLoss()
-    optimizer = optim.Adam(model.parameters(), lr=1e-4)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3)# 스케쥴러로 lr 조정
+    optimizer = optim.Adam(model.parameters(), lr=1e-4, weight_decay=1e-5) # 과적합 방지용 : weight decay 추가
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=6)# 스케쥴러로 lr 조정
     writer = SummaryWriter(log_dir='./runs/engagement_experiment')
 
     num_epochs = 20
     best_val_loss = float('inf') 
-    patience = 3
+    patience = 6
     patience_counter = 0
     overfit_counter = 0
     global_step = 0
@@ -94,11 +70,21 @@ def train():
             optimizer.step()
 
             running_loss += loss.item()
-            writer.add_scalar('Loss/train_batch', loss.item(), global_step)
+            # writer.add_scalar('Loss/train_batch', loss.item(), global_step)
             global_step += 1
+        all_train_labels = []
+
+        #train 라벨 분포 출력해보기
+        for _, labels in train_loader:
+            all_train_labels.append(labels.view(-1).cpu())
+
+        all_train_labels = torch.cat(all_train_labels).numpy()
+        unique, counts = np.unique(all_train_labels, return_counts=True)
+        print(f"[학습 데이터 라벨 분포] {dict(zip(unique, counts))}")
+
 
         avg_train_loss = running_loss / len(train_loader)
-        print(f"Epoch [{epoch+1}/{num_epochs}] Train Loss: {avg_train_loss:.4f}")
+        #print(f"Epoch [{epoch+1}/{num_epochs}] Train Loss: {avg_train_loss:.4f}")
 
         model.eval()
         val_loss = 0.0
@@ -119,6 +105,7 @@ def train():
                 all_labels.append(labels.cpu())
 
         avg_val_loss = val_loss / len(val_loader)
+        #print(f"Epoch [{epoch+1}/{num_epochs}] Val Loss: {avg_val_loss:.4f}")
         all_probs = torch.cat(all_probs).numpy()
         all_labels = torch.cat(all_labels).numpy()
 
@@ -139,7 +126,7 @@ def train():
         #         best_f1 = f1
         #         best_threshold = t
         # val_f1 = best_f1
-        # # 기존 val_f1 계산 뒤에 추가
+        # 기존 val_f1 계산 뒤에 추가
         # cm = confusion_matrix(all_labels, (all_probs > best_threshold).astype(int))
 
         # plt.figure(figsize=(6,5))
@@ -148,15 +135,21 @@ def train():
         # plt.ylabel("True Label")
         # plt.title("Confusion Matrix")
         # plt.show()
-        print(f"Epoch [{epoch+1}/{num_epochs}] Train Loss : {avg_train_loss}, Val Loss: {avg_val_loss:.4f}")
-        plt.hist(all_probs[all_labels == 1], bins=50, alpha=0.7, label="Positive")
-        plt.hist(all_probs[all_labels == 0], bins=50, alpha=0.7, label="Negative")
-        plt.title("Sigmoid Output Distribution")
-        plt.xlabel("Predicted Probability")
-        plt.ylabel("Count")
-        plt.legend()
-        plt.show()
+        
+        print(f"Epoch [{epoch+1}/{num_epochs}] Train Loss : {avg_train_loss:.4f}, Val Loss: {avg_val_loss:.4f}")
+        # plt.hist(all_probs[all_labels == 1], bins=50, alpha=0.7, label="Positive")
+        # plt.hist(all_probs[all_labels == 0], bins=50, alpha=0.7, label="Negative")
+        # plt.title("Sigmoid Output Distribution")
+        # plt.xlabel("Predicted Probability")
+        # plt.ylabel("Count")
+        # plt.legend()
+        # plt.show()
 
+        # plt.hist(outputs.detach().cpu().numpy(), bins=100)
+        # plt.title("Raw Logits Distribution")
+        # plt.xlabel("Logit Value")
+        # plt.ylabel("Count")
+        # plt.show()
 
         print(f"Epoch [{epoch+1}/{num_epochs}] Val Loss: {avg_val_loss:.4f}, F1: {val_f1:.4f}, Best Threshold: {best_threshold:.2f}")
         writer.add_scalar('Loss/train', avg_train_loss, epoch)
@@ -164,10 +157,10 @@ def train():
 
         scheduler.step(avg_val_loss)
 
-        if avg_val_loss < best_val_loss:  # ✅
+        if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
             patience_counter = 0
-            torch.save(model.state_dict(), 'best_model.pth')  # 모델 저장
+            torch.save(model.state_dict(), 'best_model.pth')
         else:
             patience_counter += 1
 
@@ -189,7 +182,7 @@ def train():
         prev_val_f1 = val_f1
         prev_train_loss = avg_train_loss
 
-    writer.close()
+    # writer.close()
     print("Training complete. Best validation loss:", best_val_loss)
 
 if __name__ == '__main__':

@@ -23,8 +23,7 @@ def extract_frames(video_path, local_output_base, face_detector, segment_duratio
 
     print(f"🎬 세그먼트 수: {num_segments}, Interval: {frame_interval}프레임마다 저장")
 
-    for segment_idx in range(num_segments):
-        print(f"segment {segment_idx} 시작")
+    for segment_idx in tqdm(range(num_segments), desc="100프레임 단위로 분리"):
         local_segment_dir = os.path.normpath(os.path.join(local_output_base, f"segment_{segment_idx}"))
 
         if os.path.exists(local_segment_dir):
@@ -82,9 +81,9 @@ def extract_frames(video_path, local_output_base, face_detector, segment_duratio
 if __name__ == "__main__":
     mp_face_detection = mp.solutions.face_detection
     face_detector = mp_face_detection.FaceDetection(model_selection=1, min_detection_confidence=0.5)
-    for i in range(20,30):
-        video_folder = f"C:/Users/user/Downloads/20_03_02/{i}"
-        local_root = r"C:/AIhub_frames/train/20_03_02"  # ✅ 로컬 저장 위치
+    for i in range(40,50):
+        video_folder = f"C:/Users/user/Downloads/109.학습태도 및 성향 관찰 데이터/3.개방데이터/1.데이터/Training/01.원천데이터/ts_10/test/{i}"
+        local_root = r"C:/f/test/10_01"  # ✅ 로컬 저장 위치
 
         video_files = sorted([
             f for f in os.listdir(video_folder)
