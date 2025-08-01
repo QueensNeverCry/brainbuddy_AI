@@ -12,7 +12,7 @@ max_count = 30
 min_count = 11  # 10개 이하면 제거
 
 # 순회
-for seq in range(1, 149):
+for seq in range(149, 162):# 149~161은 validation data
     seq_str = f"{seq:03d}"
     for device in devices:
         json_dir = os.path.join(label_root, seq_str, "T1", device, json_subdir)

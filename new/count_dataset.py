@@ -2,7 +2,7 @@
 import os
 from glob import glob
 
-train_root = r"C:\eye_dataset\train"
+train_root = r"C:/eye_dataset/valid"
 valid_count = 0
 
 for folder_name in os.listdir(train_root):
