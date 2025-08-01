@@ -35,7 +35,8 @@ class EngagementModel(nn.Module):
             nn.Linear(hidden_size*2, hidden_size), # 입력 레이어* 2
             nn.ReLU(),
             nn.Dropout(0.3),
-            nn.Linear(hidden_size, output_size)
+            nn.Linear(hidden_size, output_size),
+            #nn.Tanh()  ###logit 범위 제한: [-1, 1]
         )
 
     def forward(self, x):  # x: (B, T, 1280)
