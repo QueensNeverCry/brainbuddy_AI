@@ -3,19 +3,25 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class BaseLSTM(nn.Module):
-    def __init__(self, input_size, hidden_size=64, num_layers=1, num_classes=5):
+    def __init__(self, input_size, stat_size, hidden_size=64, num_layers=2, num_classes=5):
         super().__init__()
         self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, dropout=0.3)
+
         self.fc = nn.Sequential(
-            nn.LayerNorm(hidden_size),
-            nn.Linear(hidden_size, num_classes)
+            nn.LayerNorm(hidden_size + stat_size),
+            nn.Linear(hidden_size + stat_size, num_classes)
         )
 
-    def forward(self, x):
-        # x: [batch, seq_len, input_size]
-        _, (hn, _) = self.lstm(x)      # hn: [num_layers, batch, hidden_size]
-        last_hidden = hn[-1]          # 마지막 레이어의 hidden state
-        out = self.fc(last_hidden)    # [batch, num_classes]
+    def forward(self, x_seq, x_stat):
+        # x_seq: [batch, seq_len, input_size]
+        # x_stat: [batch, stat_size]
+
+        _, (hn, _) = self.lstm(x_seq)          # hn: [num_layers, batch, hidden_size]
+        last_hidden = hn[-1]                   # [batch, hidden_size]
+
+        combined = torch.cat([last_hidden, x_stat], dim=1)  # [batch, hidden + stat_size]
+        out = self.fc(combined)                # [batch, num_classes]
+
         return out
     
 # class AttentionLSTM(nn.Module):

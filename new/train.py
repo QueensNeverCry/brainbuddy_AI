@@ -1,4 +1,3 @@
-# k-fold안쓰고 학습
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -12,7 +11,7 @@ import os
 
 # -------------------------------
 from new.attention_dataset import AttentionDataset
-from new.lstm import BaseLSTM
+from new.lstm import BaseLSTM  # <- 새 모델 (기존 BaseLSTM에서 변경)
 # -------------------------------
 
 # ✅ 하이퍼파라미터
@@ -37,19 +36,22 @@ set_seed()
 # ✅ 장치 설정
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# ✅ train/valid 데이터셋 따로 로딩
+# ✅ 데이터 로딩 (통계 feature 포함하는 Dataset 사용)
 train_dataset = AttentionDataset("C:/eye_dataset/all_features.csv", seq_len=SEQ_LEN)
 valid_dataset = AttentionDataset("C:/eye_dataset/all_features_valid.csv", seq_len=SEQ_LEN)
 
-# ✅ DataLoader 생성
 train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
 val_loader = DataLoader(valid_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
 # ✅ 클래스 이름
 class_names = ["집중", "졸림", "집중결핍", "집중하락", "태만"]
 
-# ✅ 모델 정의
-model = BaseLSTM(input_size=len(train_dataset.feature_cols), hidden_size=HIDDEN_SIZE, num_classes=NUM_CLASSES).to(device)
+# ✅ 모델 정의 (입력 차원 조정)
+input_size = len(train_dataset.sequence_cols)       # 시계열 feature 수
+stat_size = len(train_dataset.stats_cols)           # 통계 feature 수
+model = BaseLSTM(input_size=input_size, stat_size=stat_size,
+                      hidden_size=HIDDEN_SIZE, num_classes=NUM_CLASSES).to(device)
+
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=LR)
 
@@ -65,28 +67,44 @@ for epoch in range(NUM_EPOCHS):
     model.train()
     epoch_loss = 0
 
-    for x_batch, y_batch in train_loader:
-        x_batch = x_batch.to(device)
+    for x_seq, x_stat, y_batch in train_loader:
+        x_seq = x_seq.to(device)
+        x_stat = x_stat.to(device)
         y_batch = y_batch.to(device)
 
+        # 🔍 NaN 체크
+        if torch.isnan(x_seq).any() or torch.isnan(x_stat).any():
+            print("❌ NaN in input (x_seq or x_stat)")
+        if torch.isinf(x_seq).any() or torch.isinf(x_stat).any():
+            print("❌ Inf in input (x_seq or x_stat)")
+
         optimizer.zero_grad()
-        outputs = model(x_batch)
+        outputs = model(x_seq, x_stat)
+
+        if torch.isnan(outputs).any():
+            print("❌ NaN in model output")
+
         loss = criterion(outputs, y_batch)
-        loss.backward()
-        optimizer.step()
-        epoch_loss += loss.item()
+        if torch.isnan(loss):
+            print("❌ NaN in loss (before backward)")
+            print("⚠️ Labels:", y_batch[:10])
+            print("⚠️ Outputs:", outputs[:10])
+            break
 
     print(f"📉 Epoch {epoch+1}/{NUM_EPOCHS} - Loss: {epoch_loss:.4f}")
 
-# ✅ Train Accuracy & Report
+# ✅ 평가 모드
 model.eval()
+
+# Train Accuracy & Report
 train_preds, train_targets = [], []
 
 with torch.no_grad():
-    for x_batch, y_batch in train_loader:
-        x_batch = x_batch.to(device)
+    for x_seq, x_stat, y_batch in train_loader:
+        x_seq = x_seq.to(device)
+        x_stat = x_stat.to(device)
         y_batch = y_batch.to(device)
-        outputs = model(x_batch)
+        outputs = model(x_seq, x_stat)
         preds = torch.argmax(outputs, dim=1)
         train_preds.extend(preds.cpu().numpy())
         train_targets.extend(y_batch.cpu().numpy())
@@ -94,22 +112,23 @@ with torch.no_grad():
 train_acc = accuracy_score(train_targets, train_preds)
 train_report = classification_report(train_targets, train_preds, target_names=class_names, output_dict=True)
 
-# ✅ Validation Accuracy & Report
+# Valid Accuracy & Report
 val_preds, val_targets = [], []
 
 with torch.no_grad():
-    for x_val, y_val in val_loader:
-        x_val = x_val.to(device)
-        y_val = y_val.to(device)
-        outputs = model(x_val)
+    for x_seq, x_stat, y_batch in val_loader:
+        x_seq = x_seq.to(device)
+        x_stat = x_stat.to(device)
+        y_batch = y_batch.to(device)
+        outputs = model(x_seq, x_stat)
         preds = torch.argmax(outputs, dim=1)
         val_preds.extend(preds.cpu().numpy())
-        val_targets.extend(y_val.cpu().numpy())
+        val_targets.extend(y_batch.cpu().numpy())
 
 val_acc = accuracy_score(val_targets, val_preds)
 val_report = classification_report(val_targets, val_preds, target_names=class_names, output_dict=True)
 
-# ✅ Best 모델 저장
+# ✅ 모델 저장
 if val_acc > best_val_acc:
     best_val_acc = val_acc
     best_model_state = model.state_dict()
