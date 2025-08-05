@@ -1,8 +1,11 @@
-#CNN 특징벡터 미리 추출하지 않고 end-to-end로 학습하기
-# 1. 5-fold로 나누어 학습
-# 2. 최고 성능 저장 (ex. best_cnn_fold1.pth, best_lstm_fold1.pth)
-# 3. 중간 체크포인트 저장 (매 epoch마다) : checkpoint_fold{n}.pth
-# 4. 학습된 폴드는 건너뛰고 시작
+#CNN 특징벡터 미리 추출하지 않고 end-to-end로 학습하는 코드입니다.
+# 1. VideoFolderDataset
+# 2. 각 파일은 [(folder_path, label), ...] 형태로 pkl 파일에 저장되어 있습니다.(pkl 경로 : pickle_labels 안에 있습니다)
+#    따라서 해당 경로를 읽으면 그 안에 30프레임이 들어있는 구조입니다.
+# 3. Optimizer : Adam, 
+#    loss : BCEWithLogitsLoss, 
+#    Scheduler : ReduceLROnPlateau (F1-score가 향상되지 않으면 LR을 0.5배 감소)
+# 4. 중간 체크포인트 저장 (매 epoch마다) : checkpoint_fold{n}.pth
 import os
 import pickle
 import torch
@@ -21,6 +24,7 @@ from sklearn.metrics import roc_auc_score, roc_curve
 import csv
 from torch.utils.data import WeightedRandomSampler
 
+# Pytorch Dataset 객체 정의
 class VideoFolderDataset(Dataset):
     def __init__(self, data_list, transform=None, verbose=True):
         """
@@ -137,14 +141,14 @@ def train_or_eval(loader, cnn, model, criterion, optimizer=None, train=True, sho
         with torch.set_grad_enabled(train):
             features = cnn(videos)
             outputs = model(features)
-            probs = torch.sigmoid(outputs)  # ✅ sigmoid → 확률화
+            probs = torch.sigmoid(outputs)
 
             if not train and step == 0:
                 print("🔍 outputs:", outputs.squeeze().tolist())
                 print("🔍 probs:", probs.squeeze().tolist())
                 print("🔍 labels:", labels.squeeze().tolist())
 
-            loss = criterion(outputs, labels)  # ✅ 확률 입력 (BCELoss 기준)
+            loss = criterion(outputs, labels)
 
             if train:
                 loss = loss / accumulation_steps
@@ -183,14 +187,13 @@ def train_or_eval(loader, cnn, model, criterion, optimizer=None, train=True, sho
 
     return avg_loss, accuracy
 
-
-
+#(폴더경로, 라벨)이 담긴 pkl파일 읽기
 def load_multiple_pickles(pkl_paths):
     all_data = []
     for path in pkl_paths:
         with open(path, "rb") as f:
             data = pickle.load(f)
-            all_data.extend(data)  # 각 파일은 [(folder_path, label), ...] 형태
+            all_data.extend(data)  
     return all_data
 
 def main(resume_only=True):
@@ -207,7 +210,7 @@ def main(resume_only=True):
             writer.writerow(["epoch", "train_loss", "train_acc", "val_loss", "val_acc", "f1_score", "best_thresh", "auc"])
 
 
-    # 🔹 1. 명시적 train/val pkl 로드
+    # train/val pkl 로드
     train_pkl_files = [
         #"C:/KSEB/brainbuddy_AI/preprocess2/pickle_labels/train/20_01.pkl",
         #"C:/KSEB/brainbuddy_AI/preprocess2/pickle_labels/train/20_03.pkl",
@@ -222,48 +225,42 @@ def main(resume_only=True):
     train_data_list = load_multiple_pickles(train_pkl_files)
     val_data_list = load_multiple_pickles(val_pkl_files)
 
-    #### 데이터 샘플 수 및 분포 비율 출력####
-    print(f"📦 Train 샘플 수: {len(train_data_list)}")
+    print(f"📦 Train 샘플 수: {len(train_data_list)}")# 데이터 샘플 수 및 분포 비율 출력
     print(f"📦 Valid 샘플 수: {len(val_data_list)}")
-
     train_labels = [label for _, label in train_data_list]
     val_labels = [label for _, label in val_data_list]
-
     train_pos_ratio = np.mean(train_labels)
     val_pos_ratio = np.mean(val_labels)
-
     print(f"📊 Train 클래스 분포: 1 비율 = {train_pos_ratio:.4f}, 0 비율 = {1 - train_pos_ratio:.4f}")
     print(f"📊 Valid 클래스 분포: 1 비율 = {val_pos_ratio:.4f}, 0 비율 = {1 - val_pos_ratio:.4f}")
-    #### 데이터 샘플 수 및 분포 비율 출력####
-
-    # 🔹 2. Transform 정의
+ 
     transform = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406],
                              [0.229, 0.224, 0.225])
     ])
-    class_counts = np.bincount(train_labels)
-    weights = 1. / class_counts
-    sample_weights = [weights[label] for _, label in train_data_list]
+    # DAiSEE만 써서 학습해보았을 때: weightedRandomSampler로 불균형 보정
+    # class_counts = np.bincount(train_labels)
+    # weights = 1. / class_counts
+    # sample_weights = [weights[label] for _, label in train_data_list]
+    # sampler = WeightedRandomSampler(sample_weights, len(sample_weights), replacement=True)
 
-    sampler = WeightedRandomSampler(sample_weights, len(sample_weights), replacement=True)
 
-    
     train_dataset = VideoFolderDataset(train_data_list, transform=transform, verbose=False)
     val_dataset = VideoFolderDataset(val_data_list, transform=transform, verbose=False)
-    train_loader = DataLoader(train_dataset, batch_size=2, sampler=sampler, num_workers=8, pin_memory=True)
-    #train_loader = DataLoader(train_dataset, batch_size=2, shuffle=True,num_workers=8, pin_memory=True)
+    #train_loader = DataLoader(train_dataset, batch_size=2, sampler=sampler, num_workers=8, pin_memory=True)
+    train_loader = DataLoader(train_dataset, batch_size=2, shuffle=True,num_workers=8, pin_memory=True)
     val_loader = DataLoader(val_dataset, batch_size=2, shuffle=False,num_workers=8, pin_memory=True)
 
-    # 🔹 3. 모델/옵티마이저 정의
+    # 모델/옵티마이저 정의
     cnn = CNNEncoder().to(device)
     model = EngagementModel().to(device)
     optimizer = torch.optim.Adam(list(cnn.parameters()) + list(model.parameters()), lr=1e-4)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=3)
-    criterion = nn.BCEWithLogitsLoss() ### criterion = nn.BCEWithLogitsLoss()
+    criterion = nn.BCEWithLogitsLoss()
 
-    # 🔹 4. 체크포인트 로드 (선택)
+    # 체크포인트가 있다면 로드해서 이어서 학습하기
     checkpoint_path = "checkpoint.pth"
     best_model_path = "best_model.pth"
     start_epoch = 0
@@ -281,7 +278,8 @@ def main(resume_only=True):
         best_val_f1 = checkpoint["best_val_f1"]
 
     accumulation_steps = 16
-    # 🔹 5. 학습 루프
+
+    # train
     for epoch in range(start_epoch, 20):
         # F1-score 계산
         cnn.eval()
@@ -297,7 +295,7 @@ def main(resume_only=True):
                 all_probs.extend(probs.cpu().numpy())
                 all_labels.extend(labels.cpu().numpy())
 
-        # ✅ 동적 threshold 평가
+        # 동적 threshold 평가
         final_preds, best_thresh, val_f1, val_acc, val_auc= evaluate_and_visualize(
             y_true=all_labels, 
             y_probs=np.array(all_probs), 
