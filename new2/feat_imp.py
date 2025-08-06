@@ -4,6 +4,17 @@ import numpy as np
 from sklearn.metrics import accuracy_score
 from copy import deepcopy
 from tqdm import tqdm
+from lstm import baseLSTMModel
+from feature_dataset import FeatureDataset
+from torch.utils.data import DataLoader
+
+# === validation 데이터셋 로드
+val_dataset = FeatureDataset(
+    seq_dir="C:/eye_dataset/valid/lstm_seq",
+    dyn_dir="C:/eye_dataset/valid/dynamic_feature"
+)
+
+val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
 
 def compute_permutation_importance(model, val_loader, device, feature_names):
     model.eval()
@@ -58,6 +69,7 @@ def compute_permutation_importance(model, val_loader, device, feature_names):
 
 
 # 모델 로딩
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = baseLSTMModel(input_size=28, hidden_size=128, dynamic_size=7, num_classes=5)
 model.load_state_dict(torch.load("best_model.pth", map_location=device))
 model.to(device)
