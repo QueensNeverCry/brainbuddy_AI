@@ -119,9 +119,9 @@ if __name__ == "__main__":
 
     # 1) 처리할 세 개의 입력 폴더
     input_dirs = [
-        r"C:/Users/user/Downloads/126.eye/01-1.data/Training/01.data/TS/003/T1/image_30_face_crop",
-        r"C:/Users/user/Downloads/126.eye/01-1.data/Training/01.data/TS/002/T1/image_30_face_crop",
-        r"C:/Users/user/Downloads/126.eye/01-1.data/Training/01.data/TS/001/T1/image_30_face_crop"
+        r"C:/Users/user/Downloads/126.eye/0801/t/o/og/TS/TS/all_image_30/134_face_crop",
+        r"C:/Users/user/Downloads/126.eye/0801/t/o/og/TS/TS/all_image_30/135_face_crop", #파일 다운로드 경로를 영어로 바꾸어야함.
+        r"C:/Users/user/Downloads/126.eye/0801/t/o/og/TS/TS/all_image_30/136_face_crop"
     ]
 
     # 2) 각 폴더에서 (폴더경로, 라벨) 리스트 생성
@@ -136,7 +136,7 @@ if __name__ == "__main__":
     print(f"전체 샘플 폴더 수: {len(all_dataset_link)}")
 
     # 3) 피처 저장 설정
-    save_path = r"C:/Users/user/Desktop/brainbuddy_AI/cnn_features/features/all_TS_features.pkl"
+    save_path = r"C:/Users/user/Desktop/brainbuddy_AI/cnn_features/features/0801_TS_features.pkl"
     device_str = "cuda:0" if torch.cuda.is_available() else "cpu"
     num_workers = min(multiprocessing.cpu_count(), 4)
     T = 30  # 프레임 수

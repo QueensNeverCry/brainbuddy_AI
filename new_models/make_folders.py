@@ -2,50 +2,66 @@ import os
 import shutil
 from collections import defaultdict
 
-target_displays=["Laptop","Monitor"]
-# 원본 png 파일들이 있는 경로
-base_root = r"C:\Users\user\Downloads\126.디스플레이 중심 안구 움직임 영상 데이터\01-1.정식개방데이터\Training\01.원천데이터\TS.zip\001\T1"
+# ────────────────────────────────────────────────────────
+# 1) “큰” 최상위 폴더 지정
+big_base_root = r"C:/Users/user/Downloads/126.eye/01-2.data/training/Training/ogdata/TS/TS"
 
-# 결과 폴더
-output_base = os.path.join(base_root, "분류된_이미지")
+# 2) 결과를 저장할 최상위 폴더 (원본 옆에 생성)
+output_base = os.path.join(big_base_root, "분류된_이미지_30개_전체")
 os.makedirs(output_base, exist_ok=True)
 
-# 공통 이름 기준으로 파일 분류
-grouped_files = defaultdict(list)
+# 3) 그룹 하나당 최대 개수
+batch_size = 30
 
-for display in target_displays :
-    rgb_path = os.path.join(base_root, display, "rgb")
-    if not os.path.isdir(rgb_path):
-        print(f"[경고] 경로 없음: {rgb_path}")
+# ────────────────────────────────────────────────────────
+# 4) 세션별(숫자 폴더별)로 처리
+for session_name in sorted(os.listdir(big_base_root)):
+    session_dir = os.path.join(big_base_root, session_name)
+    if not os.path.isdir(session_dir):
         continue
-    for filename in os.listdir(rgb_path):
-        if not filename.endswith(".png"):
-            continue
-        base = filename.rsplit("_",1)[0]
-        grouped_files[base].append((filename, rgb_path))
-# grouped_files = {
-#     "S01_S_D_E_T": [
-#         ("S01_S_D_E_T_00001.png", "...\\Laptop\\rgb"),
-#         ("S01_S_D_E_T_00002.png", "...\\Laptop\\rgb"),
-#         ("S01_S_D_E_T_00003.png", "...\\Monitor\\rgb"),  # 예시
-#         ...
-#     ],
-#     "S02_S_C_D_T": [
-#         ("S02_S_C_D_T_00001.png", "...\\Laptop\\rgb"),
-#         ...
-#     ]
-# }
 
-# 파일 이동 및 폴더 생성
-for group_name, file_list in grouped_files.items(): # key, value 쌍을 하나씩 가져옴 - key :  "S01_S_D_E_T", value(file list) : [(파일명, 경로), (파일명, 경로), ...]
-    group_folder = os.path.join(output_base, group_name)
-    os.makedirs(group_folder, exist_ok=True)
-    for fname, src_dir in file_list:
-        src_file = os.path.join(src_dir, fname)
-        dst_file = os.path.join(group_folder, fname)
-        shutil.move(src_file, dst_file)
+    # 4-a) 해당 세션 안의 모든 'rgb' 폴더 찾기 → { base_name: [(fn, 폴더), …] }
+    grouped = defaultdict(list)
+    for root, dirs, files in os.walk(session_dir):
+        if os.path.basename(root).lower() == "rgb":
+            for fn in sorted(files):
+                if fn.lower().endswith(".png"):
+                    base = fn.rsplit("_", 1)[0]
+                    grouped[base].append((fn, root))
 
-# 결과 출력
-print("\n=== 그룹별 PNG 파일 개수 ===")
-for group_name, files in grouped_files.items():
-    print(f"{group_name}: {len(files)}개")
+    # 4-b) 그룹별로 폴더 만들고 이동 + 패딩 복제
+    session_out = os.path.join(output_base, session_name)
+    for base_name, entries in grouped.items():
+        # 프레임 순서대로
+        entries.sort(key=lambda x: x[0])
+
+        dest_dir = os.path.join(session_out, base_name)
+        os.makedirs(dest_dir, exist_ok=True)
+
+        # 이동할 목록 결정
+        if len(entries) >= batch_size:
+            to_move = entries[:batch_size]
+            pad_count = 0
+        else:
+            to_move = entries
+            pad_count = batch_size - len(entries)
+
+        # 원본 이동
+        for fn, src_dir in to_move:
+            shutil.move(os.path.join(src_dir, fn),
+                        os.path.join(dest_dir, fn))
+
+        # 부족분은 마지막 프레임 복제
+        if pad_count > 0:
+            last_fn, _ = entries[-1]
+            last_moved = os.path.join(dest_dir, last_fn)
+            name_no_ext, ext = os.path.splitext(last_fn)
+            for i in range(pad_count):
+                pad_name = f"{name_no_ext}_pad_{i+1:02d}{ext}"
+                shutil.copy(last_moved,
+                            os.path.join(dest_dir, pad_name))
+
+# ────────────────────────────────────────────────────────
+# 5) 완료 메시지
+print("모든 세션 처리 완료!")
+print("결과 폴더:", output_base)

@@ -6,21 +6,17 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 from torchvision import transforms
 from tqdm import tqdm
-from sklearn.metrics import confusion_matrix, classification_report, roc_auc_score
+from sklearn.metrics import (
+    confusion_matrix, classification_report, roc_auc_score,
+    roc_curve, precision_recall_curve
+)
 import numpy as np
 
-# 1) Dataset 정의 (패딩 + 빈 폴더 블랭크 처리 버전)
+# 1) Dataset 정의
 class VideoFolderDataset(Dataset):
-    def __init__(self, data_list, transform=None, T=30, blank_size=(256,256)):
-        """
-        data_list: List of (folder_path, label)
-        T: 프레임 수 (기본 30)
-        blank_size: 빈 폴더일 때 생성할 블랭크 이미지 크기
-        """
+    def __init__(self, data_list, transform=None):
         self.data_list = data_list
         self.transform = transform
-        self.T = T
-        self.blank_size = blank_size
 
     def __len__(self):
         return len(self.data_list)
@@ -31,36 +27,17 @@ class VideoFolderDataset(Dataset):
             f for f in os.listdir(folder_path)
             if f.lower().endswith(('.png', '.jpg', '.jpeg'))
         )
+        if len(imgs) < 30:
+            raise ValueError(f"'{folder_path}'에 이미지 30장 미만")
+        imgs = imgs[:30]
 
-        # 1) 폴더에 이미지가 전혀 없으면 블랭크 프레임 생성
-        if len(imgs) == 0:
-            frames = []
-            blank = Image.new('RGB', self.blank_size, (0,0,0))
-            for _ in range(self.T):
-                if self.transform:
-                    frames.append(self.transform(blank))
-                else:
-                    frames.append(torch.zeros(3, *self.blank_size))
-            video = torch.stack(frames)  # (T, C, H, W)
-            return video, torch.tensor(label, dtype=torch.float32)
-
-        # 2) 이미지 개수 < T 이면, 마지막 프레임 복제 패딩
-        if len(imgs) < self.T:
-            imgs += [imgs[-1]] * (self.T - len(imgs))
-
-        # 3) 첫 T개만 사용
-        imgs = imgs[:self.T]
-
-        # 4) 이미지 로드 및 전처리
         frames = []
         for fn in imgs:
             img = Image.open(os.path.join(folder_path, fn)).convert("RGB")
             if self.transform:
                 img = self.transform(img)
             frames.append(img)
-
-        # 5) (T, C, H, W) 텐서로 반환
-        video = torch.stack(frames)
+        video = torch.stack(frames)  # (30, 3, H, W)
         return video, torch.tensor(label, dtype=torch.float32)
 
 # 2) 라벨 파싱 (폴더명에서 F=1, 그 외=0)
@@ -87,66 +64,53 @@ class FocalLoss(nn.Module):
 
 # 4) Train/Eval 함수
 def train_epoch(loader, cnn, model, criterion, optimizer):
-    cnn.train()
-    model.train()
-    total_loss = 0.0
-    total_correct = 0
-    total_samples = 0
-
+    cnn.train(); model.train()
+    total_loss = total_correct = total_samples = 0
     for videos, labels in tqdm(loader, desc="Train"):
         videos = videos.to(device)
-        labels = labels.to(device).unsqueeze(1)  # (B,1)
+        labels = labels.to(device).unsqueeze(1)
 
         optimizer.zero_grad()
-        feats = cnn(videos)
+        feats  = cnn(videos)
         logits = model(feats)
-        loss = criterion(logits, labels)
+        loss   = criterion(logits, labels)
         loss.backward()
         optimizer.step()
 
         preds = (torch.sigmoid(logits) >= 0.5).float()
         total_correct += (preds == labels).sum().item()
-        total_loss += loss.item()
+        total_loss   += loss.item()
         total_samples += labels.size(0)
 
-    avg_loss = total_loss / len(loader)
-    accuracy = total_correct / total_samples
-    return avg_loss, accuracy
+    return total_loss/len(loader), total_correct/total_samples
 
 def validate_epoch(loader, cnn, model, criterion):
-    cnn.eval()
-    model.eval()
-    total_loss = 0.0
-    total_samples = 0
-
-    all_logits = []
-    all_labels = []
+    cnn.eval(); model.eval()
+    total_loss = total_samples = 0
+    all_logits = []; all_labels = []
 
     with torch.no_grad():
         for videos, labels in tqdm(loader, desc="Valid"):
             videos = videos.to(device)
             labels = labels.to(device).unsqueeze(1)
-            feats = cnn(videos)
+            feats  = cnn(videos)
             logits = model(feats)
-            loss = criterion(logits, labels)
+            loss   = criterion(logits, labels)
 
-            batch_logits = logits.detach().cpu().numpy().flatten().tolist()
-            batch_labels = labels.cpu().numpy().flatten().tolist()
-            all_logits.extend(batch_logits)
-            all_labels.extend(batch_labels)
-
-            total_loss += loss.item()
+            all_logits.extend(logits.cpu().numpy().flatten().tolist())
+            all_labels.extend(labels.cpu().numpy().flatten().tolist())
+            total_loss   += loss.item()
             total_samples += labels.size(0)
 
     avg_loss = total_loss / len(loader)
     probs = 1 / (1 + np.exp(-np.array(all_logits)))
-    roc_auc = roc_auc_score(all_labels, probs) if len(set(all_labels)) > 1 else float('nan')
+    roc_auc = roc_auc_score(all_labels, probs) if len(set(all_labels))>1 else float('nan')
     preds = (probs >= 0.5).astype(int)
 
-    cm = confusion_matrix(all_labels, preds)
+    cm     = confusion_matrix(all_labels, preds)
     report = classification_report(all_labels, preds, digits=4)
-    sample_preds = list(zip(all_logits, probs.tolist(), preds.tolist(), all_labels))[:5]
     accuracy = (preds == np.array(all_labels)).mean()
+    sample_preds = list(zip(all_logits, probs.tolist(), preds.tolist(), all_labels))[:5]
 
     return {
         'loss': avg_loss,
@@ -154,56 +118,57 @@ def validate_epoch(loader, cnn, model, criterion):
         'roc_auc': roc_auc,
         'confusion_matrix': cm,
         'report': report,
-        'sample_preds': sample_preds
+        'sample_preds': sample_preds,
+        'all_logits': np.array(all_logits),
+        'all_labels': np.array(all_labels)
     }
 
-# 5) Main
+# 5) main: 학습 + 최적 임계값 계산
 def main():
     global device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # 5-1) 데이터 디렉토리 설정
+    # 학습할  개의 디렉토리
     base_dirs = [
-        r"C:/Users/user/Downloads/126.eye/0801/t/o/og/TS/TS/all_image_30/134_face_crop",
-        r"C:/Users/user/Downloads/126.eye/0801/t/o/og/TS/TS/all_image_30/135_face_crop",
-        r"C:/Users/user/Downloads/126.eye/0801/t/o/og/TS/TS/all_image_30/136_face_crop",
+        r"C:/Users/user/Downloads/126.eye/01-1.data/Training/01.data/TS/001/T1/image_30_face_crop",
+        r"C:/Users/user/Downloads/126.eye/01-1.data/Training/01.data/TS/002/T1/image_30_face_crop",
+        r"C:/Users/user/Downloads/126.eye/01-1.data/Training/01.data/TS/003/T1/image_30_face_crop",
+        r"C:/Users/user/Downloads/126.eye/01-1.data/Training/01.data/TS/001/T1/image_30_face_crop",
+        r"C:/Users/user/Downloads/126.eye/01-1.data/Training/01.data/TS/002/T1/image_30_face_crop",
+        r"C:/Users/user/Downloads/126.eye/01-1.data/Training/01.data/TS/003/T1/image_30_face_crop"
     ]
 
-    # 5-2) 폴더 경로 & 라벨 리스트 생성
+    # 전체 샘플 리스트 생성
     full_list = []
     for base in base_dirs:
         for d in os.listdir(base):
-            folder_path = os.path.join(base, d)
-            if os.path.isdir(folder_path):
-                label = parse_label_from_name(d)
-                full_list.append((folder_path, label))
+            path = os.path.join(base, d)
+            if os.path.isdir(path):
+                full_list.append((path, parse_label_from_name(d)))
 
     random.shuffle(full_list)
     n_train = int(0.8 * len(full_list))
     train_list, val_list = full_list[:n_train], full_list[n_train:]
-    print(f"Train samples: {len(train_list)}, Val samples: {len(val_list)}")
 
-    # 5-3) Transform 정의
+    # Transform 정의
     train_transform = transforms.Compose([
         transforms.RandomResizedCrop(224),
         transforms.RandomHorizontalFlip(),
-        transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
+        transforms.ColorJitter(0.2,0.2,0.2),
         transforms.ToTensor(),
-        transforms.Normalize([0.485,0.456,0.406], [0.229,0.224,0.225]),
+        transforms.Normalize([0.485,0.456,0.406],[0.229,0.224,0.225]),
     ])
     val_transform = transforms.Compose([
         transforms.Resize(256),
         transforms.CenterCrop(224),
         transforms.ToTensor(),
-        transforms.Normalize([0.485,0.456,0.406], [0.229,0.224,0.225]),
+        transforms.Normalize([0.485,0.456,0.406],[0.229,0.224,0.225]),
     ])
 
-    # 5-4) Dataset & DataLoader
-    T = 30
-    train_ds = VideoFolderDataset(train_list, transform=train_transform, T=T)
-    val_ds   = VideoFolderDataset(val_list,   transform=val_transform,   T=T)
+    train_ds = VideoFolderDataset(train_list, transform=train_transform)
+    val_ds   = VideoFolderDataset(val_list,   transform=val_transform)
 
-    # Oversampling sampler
+    # Oversampling Sampler
     train_labels = [lbl for _, lbl in train_ds.data_list]
     counts = np.bincount(train_labels)
     class_weights = 1. / counts
@@ -213,58 +178,66 @@ def main():
     train_loader = DataLoader(train_ds, batch_size=8, sampler=sampler, num_workers=4)
     val_loader   = DataLoader(val_ds,   batch_size=8, shuffle=False,   num_workers=4)
 
-    # 5-5) 모델 초기화
+    # 모델 초기화
     from models.cnn_encoder import CNNEncoder
     from models.engagement_model import EngagementModel
     cnn   = CNNEncoder().to(device)
     model = EngagementModel().to(device)
 
-    # 5-6) Loss, Optimizer, Scheduler
+    # Loss, Optimizer, Scheduler
     criterion = FocalLoss(alpha=0.25, gamma=2.0)
     optimizer = torch.optim.AdamW(
         list(cnn.parameters()) + list(model.parameters()),
-        lr=1e-4,
-        weight_decay=1e-5
+        lr=1e-4, weight_decay=1e-5
     )
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, mode='min', factor=0.5, patience=2, verbose=True
     )
 
-    # 5-7) 학습 루프
-    best_auc = 0.0
+    best_val_loss = float('inf')
     early_stop_patience = 5
-    patience_counter = 0
+    no_improve_count = 0
 
+    # 학습 루프
     for epoch in range(1, 21):
         print(f"\n=== Epoch {epoch} ===")
         tr_loss, tr_acc = train_epoch(train_loader, cnn, model, criterion, optimizer)
         print(f"Train Loss: {tr_loss:.4f}, Acc: {tr_acc:.4f}")
 
         val_stats = validate_epoch(val_loader, cnn, model, criterion)
-        print(f"Val   Loss: {val_stats['loss']:.4f}, Acc: {val_stats['accuracy']:.4f}, ROC AUC: {val_stats['roc_auc']:.4f}")
+        print(f"Val Loss: {val_stats['loss']:.4f}, Acc: {val_stats['accuracy']:.4f}, ROC AUC: {val_stats['roc_auc']:.4f}")
         print("\n📊 Confusion Matrix:\n", val_stats['confusion_matrix'])
         print("\n📋 Classification Report:\n", val_stats['report'])
-        print("\n🔍 Sample preds:")
-        for logit, prob, pred, true in val_stats['sample_preds']:
-            print(f"logit={logit:.3f}, prob={prob:.3f}, pred={pred}, true={true}")
 
         scheduler.step(val_stats['loss'])
 
-        # 체크포인트 & Early Stopping
-        if val_stats['roc_auc'] > best_auc:
-            best_auc = val_stats['roc_auc']
-            patience_counter = 0
+        # Early stopping
+        if val_stats['loss'] < best_val_loss:
+            best_val_loss = val_stats['loss']
+            no_improve_count = 0
             torch.save({
                 'cnn': cnn.state_dict(),
                 'model': model.state_dict(),
                 'optimizer': optimizer.state_dict(),
             }, "best_checkpoint.pth")
-            print(">> 모델 성능 향상, 체크포인트 저장")
         else:
-            patience_counter += 1
-            if patience_counter >= early_stop_patience:
-                print(f">> {early_stop_patience} epochs 개선 없음, 학습 종료")
+            no_improve_count += 1
+            if no_improve_count >= early_stop_patience:
+                print(f">> {early_stop_patience} epochs no improvement, stopping training.")
                 break
+
+    # 6) 최적 임계값 계산
+    logits = val_stats['all_logits']
+    labels = val_stats['all_labels']
+    fpr, tpr, roc_th = roc_curve(labels, logits)
+    youden_idx = np.argmax(tpr - fpr)
+    best_roc_th = roc_th[youden_idx]
+    precision, recall, pr_th = precision_recall_curve(labels, logits)
+    f1_scores = 2 * precision * recall / (precision + recall + 1e-8)
+    best_pr_th = pr_th[np.argmax(f1_scores)]
+
+    print(f"\n▶️ Best ROC cutoff: {best_roc_th:.3f}")
+    print(f"▶️ Best F1 cutoff:  {best_pr_th:.3f}")
 
 if __name__ == "__main__":
     main()
