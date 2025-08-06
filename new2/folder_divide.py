@@ -255,13 +255,13 @@ for seq in tqdm(range(1, 149), desc="시퀀스 처리"):
 
             df = pd.DataFrame(features)
             lstm_df = preprocess_for_lstm(df)
-            if lstm_df.shape[1] != 28:
+            if lstm_df.shape[1] != 38:
                 print(f"❗ feature 수 불일치: {prefix} → {lstm_df.shape}")
                 continue
             np.save(os.path.join(output_seq_root, f"{prefix}.npy"), lstm_df.to_numpy())
-            #print(f"시퀀스 저장: {prefix} ({len(lstm_df)} rows)")
+            #print(f"✅ 시퀀스 저장: {prefix} ({len(lstm_df)} rows)")
 
-            # 동적 feature 저장
+            # 💡 동적 feature 저장
             dyn_feats = compute_dynamic_features(df)
             if dyn_feats:
                 dyn_df = pd.DataFrame([dyn_feats])

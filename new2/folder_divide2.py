@@ -7,8 +7,8 @@ from glob import glob
 from tqdm import tqdm
 
 # === 설정 ===F
-label_root = r"C:/Users/user/Downloads/126.디스플레이 중심 안구 움직임 영상 데이터/01-1.정식개방데이터/Validation/02.라벨링데이터/VL"
-output_root = r"C:/eye_dataset/valid1"
+label_root = r"C:/Users/user/Downloads/126.디스플레이 중심 안구 움직임 영상 데이터/01-1.정식개방데이터/Training/02.라벨링데이터/TL"
+output_root = r"C:/eye_dataset/train1"
 output_seq_root = os.path.join(output_root, "lstm_seq")
 output_dyn_root = os.path.join(output_root, "dynamic_feature")
 os.makedirs(output_seq_root, exist_ok=True)
@@ -243,7 +243,7 @@ def extract_features(json_path):
         return None
 
 # === 메인 루프
-for seq in tqdm(range(149, 162), desc="시퀀스 처리"):
+for seq in tqdm(range(1, 149), desc="시퀀스 처리"):
     seq_str = f"{seq:03d}"
     for device in devices:
         json_dir = os.path.join(label_root, seq_str, "T1", device, json_subdir)
