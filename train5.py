@@ -17,7 +17,7 @@ import seaborn as sns
 from PIL import Image
 from matplotlib import pyplot as plt
 from models.cnn_encoder import CNNEncoder
-from models.engagement_model import EngagementModel
+#from models.engagement_model import EngagementModel
 from sklearn.metrics import confusion_matrix, classification_report, f1_score
 import numpy as np
 from sklearn.metrics import roc_auc_score, roc_curve
@@ -59,13 +59,11 @@ class VideoFolderDataset(Dataset):
             fname for fname in os.listdir(folder_path)
             if fname.lower().endswith(('.jpg', '.jpeg', '.png'))
         ])
-
-        if len(img_files) < 30:
-            raise ValueError(f"❌ 폴더 {folder_path}에는 이미지가 30장 이상 있어야 합니다.")
-
         selected_files = img_files[:30]
-
         frames = []
+        if len(selected_files) < 30:
+            raise ValueError(f"❌ 프레임 수 부족 ({len(selected_files)}개): {folder_path}")
+
         for fname in selected_files:
             img_path = os.path.join(folder_path, fname)
             image = Image.open(img_path).convert("RGB")
@@ -74,7 +72,39 @@ class VideoFolderDataset(Dataset):
             frames.append(image)
 
         video = torch.stack(frames)  # (30, 3, 224, 224)
-        return video, torch.tensor(label, dtype=torch.float32)
+
+        # 📌 Late Fusion: 추가 feature 로드 (예: 얼굴 각도 변화량, 하품 여부 등)
+        fusion_feat_path = os.path.join(folder_path, "fusion_features.pkl")
+        if os.path.exists(fusion_feat_path):
+            with open(fusion_feat_path, 'rb') as f:
+                fusion_features = pickle.load(f)
+            fusion_tensor = torch.tensor(fusion_features, dtype=torch.float32)
+            if fusion_tensor.ndim == 1 and fusion_tensor.size(0) != 5:
+                raise ValueError(f"❌ fusion_tensor 크기 오류: {fusion_tensor.shape} (expected 5)")
+        else:
+            fusion_tensor = torch.zeros(5)
+            if self.verbose:
+                print(f"⚠️ fusion_features.pkl not found in {folder_path}, using zeros.")
+
+
+        return video, fusion_tensor, torch.tensor(label, dtype=torch.float32)
+
+class EngagementModel(nn.Module):
+    def __init__(self, cnn_feat_dim=1280, fusion_feat_dim=5, hidden_dim=128):
+        super().__init__()
+        self.lstm = nn.LSTM(input_size=cnn_feat_dim, hidden_size=hidden_dim, batch_first=True)
+        self.fusion_fc = nn.Sequential(
+            nn.Linear(hidden_dim + fusion_feat_dim, 64),
+            nn.ReLU(),
+            nn.Linear(64, 1)
+        )
+
+    def forward(self, cnn_feats, fusion_feats):
+        # cnn_feats: (B, 30, 512)
+        _, (hn, _) = self.lstm(cnn_feats)  # hn: (1, B, H)
+        lstm_out = hn.squeeze(0)  # (B, H)
+        x = torch.cat([lstm_out, fusion_feats], dim=1)  # (B, H + fusion)
+        return self.fusion_fc(x)
 
 
 def evaluate_and_visualize(y_true, y_probs, epoch=None, save_dir="visualizations"):
@@ -139,13 +169,14 @@ def train_or_eval(loader, cnn, model, criterion, optimizer=None, train=True, sho
     all_labels = []
     all_logits = []
 
-    for step, (videos, labels) in enumerate(tqdm(loader, desc="Train" if train else "Valid")):
+    for step, (videos, fusion_feats, labels) in enumerate(tqdm(loader, desc="Train" if train else "Valid")):
+        fusion_feats = fusion_feats.to(device)
         videos = videos.to(device)
         labels = labels.to(device).unsqueeze(1)
 
         with torch.set_grad_enabled(train):
             features = cnn(videos)
-            outputs = model(features)
+            outputs = model(features, fusion_feats)
             probs = torch.sigmoid(outputs)
 
             if not train and step == 0:
@@ -162,7 +193,6 @@ def train_or_eval(loader, cnn, model, criterion, optimizer=None, train=True, sho
                     optimizer.step()
                     optimizer.zero_grad()
 
-        # 예측 및 저장
         preds = probs >= threshold
         all_logits.extend(outputs.detach().cpu().numpy())
         all_preds.extend(preds.cpu().numpy())
@@ -171,6 +201,7 @@ def train_or_eval(loader, cnn, model, criterion, optimizer=None, train=True, sho
         total_correct += (preds == labels).sum().item()
         total_loss += loss.item() * accumulation_steps
         total_samples += labels.size(0)
+
 
     avg_loss = total_loss / len(loader)
     accuracy = total_correct / total_samples
@@ -248,15 +279,15 @@ def main(resume_only=True):
     # DAiSEE만 써서 학습해보았을 때: weightedRandomSampler로 불균형 보정
     # class_counts = np.bincount(train_labels)
     # weights = 1. / class_counts
-    # sample_weights = [weights[label] for _, label in train_data_list]
+    # sample_weights = [weights[label] for _, label in train_data_list]S
     # sampler = WeightedRandomSampler(sample_weights, len(sample_weights), replacement=True)
 
 
-    train_dataset = VideoFolderDataset(train_data_list, transform=transform, verbose=False)
-    val_dataset = VideoFolderDataset(val_data_list, transform=transform, verbose=False)
+    train_dataset = VideoFolderDataset(train_data_list, transform=transform, verbose=True)
+    val_dataset = VideoFolderDataset(val_data_list, transform=transform, verbose=True)
     #train_loader = DataLoader(train_dataset, batch_size=2, sampler=sampler, num_workers=8, pin_memory=True)
-    train_loader = DataLoader(train_dataset, batch_size=2, shuffle=True,num_workers=8, pin_memory=True)
-    val_loader = DataLoader(val_dataset, batch_size=2, shuffle=False,num_workers=8, pin_memory=True)
+    train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False)
 
     # 모델/옵티마이저 정의
     cnn = CNNEncoder().to(device)
@@ -291,14 +322,18 @@ def main(resume_only=True):
         model.eval()
         all_probs, all_labels = [], []
         with torch.no_grad():
-            for videos, labels in val_loader:
+            for videos, fusion_feats, labels in val_loader:
                 videos = videos.to(device)
+                fusion_feats = fusion_feats.to(device)
                 labels = labels.to(device).unsqueeze(1)
-                outputs = model(cnn(videos))
+
+                cnn_features = cnn(videos)
+                outputs = model(cnn_features, fusion_feats)
                 probs = torch.sigmoid(outputs)
 
                 all_probs.extend(probs.cpu().numpy())
                 all_labels.extend(labels.cpu().numpy())
+
 
         # 동적 threshold 평가
         final_preds, best_thresh, val_f1, val_acc, val_auc= evaluate_and_visualize(
@@ -349,6 +384,7 @@ def main(resume_only=True):
             "best_val_f1": best_val_f1
         }, checkpoint_path)
         print("💾 체크포인트 저장 완료")
+
 
 
 if __name__ == "__main__":

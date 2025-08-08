@@ -51,12 +51,13 @@ AIHub/
 DAiSEE/
 cnn_features/features/
 cnn_features/features_30/
+visualizations/
 # ▶ PyTorch & Checkpoints
 *.pt
 *.pth
 checkpoints/
 runs/
-
+log/
 # ▶ Environment & secrets
 *.env
 .env.*
