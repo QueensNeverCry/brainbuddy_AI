@@ -21,4 +21,5 @@ def extract_frames(video_path, output_folder, fps=5):
     cap.release()
 
 if __name__ == '__main__':
+    video_path =""
     extract_frames()

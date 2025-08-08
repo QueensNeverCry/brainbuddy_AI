@@ -11,6 +11,7 @@ from torch.utils.data import DataLoader, random_split
 from sklearn.metrics import f1_score, confusion_matrix
 import matplotlib.pyplot as plt
 
+
 def set_seed(seed=42):
     random.seed(seed)
     np.random.seed(seed)
@@ -22,17 +23,20 @@ def set_seed(seed=42):
 def train():
     set_seed(42)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using {'GPU: ' + torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU'}")
+    if torch.cuda.is_available():
+        print(f"Using GPU: {torch.cuda.get_device_name(0)}")
+    else:
+        print("GPU not available. Using CPU.")
 
     train_dataset = CNNFeatureDataset([
         "./cnn_features/features_30/train_20_01.pkl",
         "./cnn_features/features_30/train_20_03.pkl",
-        #"./cnn_features/features_30/D_train.pkl",
+        "./cnn_features/features_30/D_train.pkl",
     ])
     val_dataset = CNNFeatureDataset([
         "./cnn_features/features_30/valid_20_01.pkl",
         "./cnn_features/features_30/valid_20_03.pkl",
-        #"./cnn_features/features_30/D_val.pkl"
+        "./cnn_features/features_30/D_val.pkl"
     ])
     
     # DataLoader 설정
@@ -43,16 +47,12 @@ def train():
     criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters(), lr=1e-4, weight_decay=1e-5) # 과적합 방지용 : weight decay 추가
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=6)# 스케쥴러로 lr 조정
-    writer = SummaryWriter(log_dir='./runs/engagement_experiment')
 
     num_epochs = 20
     best_val_loss = float('inf') 
     patience = 6
     patience_counter = 0
-    overfit_counter = 0
     global_step = 0
-    prev_val_f1 = 0.0
-    prev_train_loss = float('inf')
 
     for epoch in range(num_epochs):
         model.train()
@@ -151,36 +151,20 @@ def train():
         # plt.ylabel("Count")
         # plt.show()
 
-        print(f"Epoch [{epoch+1}/{num_epochs}] Val Loss: {avg_val_loss:.4f}, F1: {val_f1:.4f}, Best Threshold: {best_threshold:.2f}")
-        writer.add_scalar('Loss/train', avg_train_loss, epoch)
-        writer.add_scalar('Loss/validation', avg_val_loss, epoch)
+        # writer.add_scalar('Loss/train', avg_train_loss, epoch)
+        # writer.add_scalar('Loss/validation', avg_val_loss, epoch)
 
         scheduler.step(avg_val_loss)
 
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
             patience_counter = 0
-            torch.save(model.state_dict(), 'best_model.pth')
+            torch.save(model.state_dict(), 'best_model_2.pth')
         else:
             patience_counter += 1
-
-        # Overfitting detection
-        if avg_train_loss < prev_train_loss and val_f1 < prev_val_f1:
-            overfit_counter += 1
-            print(f"⚠️ 과적합 경고: {overfit_counter}회 연속")
-        else:
-            overfit_counter = 0
-
-        if overfit_counter >= 3:
-            print("과적합 판단으로 조기 종료합니다.")
-            break
-
-        if patience_counter >= patience:
-            print(f"Early stopping triggered after {epoch+1} epochs.")
-            break
-
-        prev_val_f1 = val_f1
-        prev_train_loss = avg_train_loss
+            if patience_counter >= patience:
+                print(f"Early stopping triggered after {epoch+1} epochs.")
+                break
 
     # writer.close()
     print("Training complete. Best validation loss:", best_val_loss)

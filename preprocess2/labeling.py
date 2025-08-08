@@ -6,7 +6,7 @@ label_base_dir = os.path.normpath(
     r"C:/Users/user/Downloads/109.학습태도 및 성향 관찰 데이터/3.개방데이터/1.데이터/Training/02.라벨링데이터/TL_20_03"
 )
 train_base_dir = os.path.normpath(r"C:/AIhub_frames/train")
-output_pickle_path = os.path.normpath("pickle_labels/train/20_01.pkl")
+output_pickle_path = os.path.normpath("pickle_labels/train/20_03.pkl")
 
 label_texts = set()
 label_map = {
