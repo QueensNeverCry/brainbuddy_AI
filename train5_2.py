@@ -67,24 +67,21 @@ def train_epoch(loader, cnn, model, criterion, optimizer):
         labels = labels.to(device).unsqueeze(1)
 
         optimizer.zero_grad()
-        feats  = cnn(videos)
+        feats = cnn(videos)
         logits = model(feats)
-        loss   = criterion(logits, labels)
+        loss = criterion(logits, labels)
         loss.backward()
         optimizer.step()
 
-        # 학습 정확도는 0.5 고정 컷오프로 계산
         preds = (torch.sigmoid(logits) >= 0.5).float()
         total_correct += (preds == labels).sum().item()
-        total_loss   += loss.item()
+        total_loss += loss.item()
         total_samples += labels.size(0)
 
     return total_loss / len(loader), total_correct / total_samples
 
+
 def validate_epoch(loader, cnn, model, criterion, threshold=0.5):
-    """
-    threshold: logits 스페이스에서 적용할 임계값
-    """
     cnn.eval(); model.eval()
     total_loss = total_correct = total_samples = 0
     with torch.no_grad():
@@ -92,20 +89,18 @@ def validate_epoch(loader, cnn, model, criterion, threshold=0.5):
             videos = videos.to(device)
             labels = labels.to(device).unsqueeze(1)
 
-            feats  = cnn(videos)
+            feats = cnn(videos)
             logits = model(feats)
-            loss   = criterion(logits, labels)
+            loss = criterion(logits, labels)
 
-            # 로짓 임계값 적용
             preds = (logits >= threshold).float()
-
             total_correct += (preds == labels).sum().item()
-            total_loss   += loss.item()
+            total_loss += loss.item()
             total_samples += labels.size(0)
 
     return total_loss / len(loader), total_correct / total_samples
 
-# 5) main: 학습 스크립트 with threshold 적용
+# 5) main: 학습 스크립트
 def main():
     global device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -123,7 +118,6 @@ def main():
         r"C:/Users/user/Downloads/126.eye/01-1.data/Training/01.data/TS/003/T1/image_30_face_crop"
     ]
 
-    # 전체 (폴더, 레이블) 리스트 생성
     full_list = []
     for base in base_dirs:
         for d in os.listdir(base):
@@ -136,7 +130,7 @@ def main():
     n_train = int(0.8 * len(full_list))
     train_list, val_list = full_list[:n_train], full_list[n_train:]
 
-    # 6) 데이터 증강 강화
+    # 데이터 증강 및 전처리
     train_transform = transforms.Compose([
         transforms.RandomResizedCrop(224),
         transforms.RandomHorizontalFlip(),
@@ -156,7 +150,7 @@ def main():
     ])
 
     train_ds = VideoFolderDataset(train_list, transform=train_transform)
-    val_ds   = VideoFolderDataset(val_list,   transform=val_transform)
+    val_ds = VideoFolderDataset(val_list, transform=val_transform)
 
     # Oversampling Sampler 설정
     train_labels = [lbl for _, lbl in train_ds.data_list]
@@ -166,22 +160,21 @@ def main():
     sampler = WeightedRandomSampler(sample_weights, len(sample_weights), replacement=True)
 
     train_loader = DataLoader(train_ds, batch_size=8, sampler=sampler, num_workers=4)
-    val_loader   = DataLoader(val_ds,   batch_size=8, shuffle=False,   num_workers=4)
+    val_loader = DataLoader(val_ds, batch_size=8, shuffle=False, num_workers=4)
 
     # 모델 초기화
     from models.cnn_encoder import CNNEncoder
     from models.engagement_model import EngagementModel
-    cnn   = CNNEncoder().to(device)
+    cnn = CNNEncoder().to(device)
     model = EngagementModel().to(device)
 
     # Loss, Optimizer, Scheduler
     criterion = FocalLoss(alpha=0.25, gamma=2.0)
     optimizer = torch.optim.AdamW(
-        list(cnn.parameters()) + list(model.parameters()),
-        lr=1e-4, weight_decay=1e-5
+        list(cnn.parameters()) + list(model.parameters()), lr=1e-4, weight_decay=1e-5
     )
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='min', factor=0.5, patience=2, verbose=True
+        optimizer, mode='min', factor=0.5, patience=2
     )
 
     best_val_loss = float('inf')
@@ -193,22 +186,19 @@ def main():
         tr_loss, tr_acc = train_epoch(train_loader, cnn, model, criterion, optimizer)
         print(f"Train Loss: {tr_loss:.4f}, Acc: {tr_acc:.4f}")
 
-        val_loss, val_acc = validate_epoch(
-            val_loader, cnn, model, criterion,
-            threshold=best_logit_th
-        )
+        val_loss, val_acc = validate_epoch(val_loader, cnn, model, criterion, threshold=best_logit_th)
         print(f"Val   Loss: {val_loss:.4f}, Acc: {val_acc:.4f}")
 
+        old_lr = optimizer.param_groups[0]['lr']
         scheduler.step(val_loss)
+        new_lr = optimizer.param_groups[0]['lr']
+        if new_lr < old_lr:
+            print(f"Learning rate reduced: {old_lr:.6f} -> {new_lr:.6f}")
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             no_improve_count = 0
-            torch.save({
-                'cnn': cnn.state_dict(),
-                'model': model.state_dict(),
-                'optimizer': optimizer.state_dict(), 
-            }, "best_checkpoint.pth")
+            torch.save({'cnn': cnn.state_dict(), 'model': model.state_dict(), 'optimizer': optimizer.state_dict()}, "best_checkpoint.pth")
             print(">> 검증 손실 개선, 체크포인트 저장")
         else:
             no_improve_count += 1
