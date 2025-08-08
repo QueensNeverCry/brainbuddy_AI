@@ -33,6 +33,7 @@ def train():
         "./cnn_features/features/train_20_01.pkl",
         "./cnn_features/features/train_20_03.pkl",
         "./cnn_features/features/D_train.pkl",
+        "./cnn_features/features/eng.pkl"
     ])
     val_dataset = CNNFeatureDataset([
         "./cnn_features/features/valid_20_01.pkl",
