@@ -14,29 +14,29 @@ from lstm import BiLSTMAttnModel
 # === 설정 ===
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 num_classes = 2#5
-input_size = 38 # PCA안했을 때 : 38, PCA 적용시 : 29
-dynamic_size = 7
+input_size = 36 # PCA안했을 때 : 38, PCA 적용시 : 29
+dynamic_size = 8
 hidden_size = 128
 batch_size = 32
 num_epochs = 20
 lr = 1e-3
 val_ratio = 0.2
 save_path = "best_model.pth"
-log_path = "log/train_log_9(foc+noPCA).csv"
+log_path = "log/train_log_10(feat).csv"
 os.makedirs("log", exist_ok=True)
 
 
 # === 데이터셋 불러오기
 train_dataset = FeatureDataset(
     #seq_dir="C:/eye_dataset/train1/lstm_seq",
-    seq_dir="C:/eye_dataset/train1/lstm_seq",
-    dyn_dir="C:/eye_dataset/train1/dynamic_feature"
+    seq_dir="C:/eye_dataset/train2/lstm_seq",
+    dyn_dir="C:/eye_dataset/train2/dynamic_feature"
 )
 
 val_dataset = FeatureDataset(
     #seq_dir="C:/eye_dataset/valid1/lstm_seq",
-    seq_dir="C:/eye_dataset/valid1/lstm_seq",
-    dyn_dir="C:/eye_dataset/valid1/dynamic_feature"
+    seq_dir="C:/eye_dataset/valid2/lstm_seq",
+    dyn_dir="C:/eye_dataset/valid2/dynamic_feature"
 )
 
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
@@ -194,9 +194,9 @@ plt.xlabel("Predicted")
 plt.ylabel("True")
 plt.title("Confusion Matrix")
 plt.tight_layout()
-plt.savefig("log/conf_matrix_9(foc+noPCA).png")
+plt.savefig("log/conf_matrix_10(feat).png")
 plt.close()
-print("🧩 confusion matrix 저장 완료 → log/conf_matrix_9(foc+noPCA).png")
+print("🧩 confusion matrix 저장 완료 → log/conf_matrix_10(feat).png")
 
 #== shap
 save_shap_inputs(train_loader, filename="shap_inputs_train.npz")

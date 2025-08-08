@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 # === 설정 ===F
 label_root = r"C:/Users/user/Downloads/126.디스플레이 중심 안구 움직임 영상 데이터/01-1.정식개방데이터/Training/02.라벨링데이터/TL"
-output_root = r"C:/eye_dataset/train3"
+output_root = r"C:/eye_dataset/train2"
 output_seq_root = os.path.join(output_root, "lstm_seq")
 output_dyn_root = os.path.join(output_root, "dynamic_feature")
 os.makedirs(output_seq_root, exist_ok=True)
@@ -107,6 +107,8 @@ def compute_dynamic_features(df):
         blink_groups = (is_blinking != is_blinking.shift(1)).cumsum()
         blink_count = is_blinking.groupby(blink_groups).sum().gt(0).sum()
         blink_duration = is_blinking.sum()
+
+        # === blink_rate_change
         blink_rate_change = np.abs(np.diff(is_blinking.astype(int))).sum() / len(df)
 
         # === Gaze Variance (3D)
@@ -116,35 +118,26 @@ def compute_dynamic_features(df):
         # === Gaze Position (2D)
         gaze_x = df[["l_eye_x", "r_eye_x"]].mean(axis=1)
         gaze_y = df[["l_eye_y", "r_eye_y"]].mean(axis=1)
-        gaze_xy = np.stack([gaze_x.values, gaze_y.values], axis=1)
+        gaze_xy = np.stack([gaze_x.values, gaze_y.values], axis=1)  # shape: (N, 2)
 
-        # === Saccade Amplitude
+        # === Saccade Amplitude (2D 거리 차이 평균)
         gaze_diffs = np.linalg.norm(np.diff(gaze_xy, axis=0), axis=1)
         saccade_amplitude = float(np.mean(gaze_diffs))
 
-        # === Gaze Entropy
+        # === Gaze Entropy (시선 히트맵의 엔트로피)
         bins = np.histogram2d(gaze_x, gaze_y, bins=10)[0]
         prob = bins / np.sum(bins)
         prob = prob[prob > 0]
         gaze_entropy = -np.sum(prob * np.log(prob))
 
         # === Fixation Dispersion
-        fixation_flags = gaze_diffs < 3
-        fixation_points = gaze_xy[1:][fixation_flags]
+        fixation_flags = gaze_diffs < 3  # threshold (픽세이션 구간)
+        fixation_points = gaze_xy[1:][fixation_flags]  # 첫 프레임 제외
         fixation_dispersion = np.std(fixation_points) if len(fixation_points) > 0 else 0.0
 
-        # === ROI dwell time
+        # === ROI dwell time (is_in_roi 비율)
         roi_dwell_time = df["is_in_roi"].sum() / len(df)
 
-        # === Gaze 순차성 분석
-        try:
-            gaze_path_linearity = compute_gaze_linearity(gaze_xy)
-            gaze_direction_reversals = compute_gaze_reversals(gaze_xy)
-        except Exception as e:
-            gaze_path_linearity = 0.0
-            gaze_direction_reversals = 0
-
-        # === 전체 feature 저장
         features.update({
             "blink_count": int(blink_count),
             "blink_duration": int(blink_duration),
@@ -154,8 +147,6 @@ def compute_dynamic_features(df):
             "gaze_entropy": gaze_entropy,
             "fixation_dispersion": fixation_dispersion,
             "roi_dwell_time": roi_dwell_time,
-            "gaze_path_linearity": gaze_path_linearity,
-            "gaze_direction_reversals": gaze_direction_reversals
         })
 
         return features
@@ -218,25 +209,6 @@ def is_in_display_area(point, bounds=(0, 0, 1920, 1080)):
     x, y = point
     return int(bounds[0] <= x <= bounds[2] and bounds[1] <= y <= bounds[3])
 
-#시선의 전체 경로 길이와, 처음~끝 직선 거리의 비율
-def compute_gaze_linearity(gaze_xy):
-    if len(gaze_xy) < 2:
-        return 0.0
-
-    total_path = np.sum(np.linalg.norm(np.diff(gaze_xy, axis=0), axis=1))
-    straight_line = np.linalg.norm(gaze_xy[-1] - gaze_xy[0])
-    return straight_line / total_path if total_path > 0 else 0.0
-
-#시선 벡터의 방향이 얼마나 자주 뒤집히는지
-def compute_gaze_reversals(gaze_xy):
-    diffs = np.diff(gaze_xy, axis=0)
-    if len(diffs) < 2:
-        return 0
-    unit_diffs = diffs / np.linalg.norm(diffs, axis=1, keepdims=True)
-    dot_products = np.sum(unit_diffs[1:] * unit_diffs[:-1], axis=1)
-    reversals = np.sum(dot_products < -0.5)  # 방향이 반대일 때
-    return int(reversals)
-
 def extract_features(json_path):
     try:
         with open(json_path, "r", encoding="utf-8") as f:
@@ -283,7 +255,7 @@ def extract_features(json_path):
         return None
 
 # === 메인 루프
-for seq in tqdm(range(41, 81), desc="시퀀스 처리"):
+for seq in tqdm(range(121, 139), desc="시퀀스 처리"):
     seq_str = f"{seq:03d}"
     for device in devices:
         json_dir = os.path.join(label_root, seq_str, "T1", device, json_subdir)

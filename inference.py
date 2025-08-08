@@ -8,15 +8,25 @@ import seaborn as sns
 from feature_dataset import CNNFeatureDataset
 from models.engagement_model import EngagementModel
 
-def load_model(model_path='best_model_2.pth', device='cpu'):
+def load_model(model_path='best_model.pth', device='cpu'):
     model = EngagementModel() 
     state_dict = torch.load(model_path, map_location=device)
+
     print("[INFO] Loaded parameter count:", len(state_dict))
     print("[INFO] Example parameter keys:", list(state_dict.keys())[:5])
-    model.load_state_dict(state_dict)
+
+    # 전체 모델 state_dict 로드
+    if 'lstm_state_dict' in state_dict or 'cnn_state_dict' in state_dict:
+        print("[INFO] Detected nested state_dict format. Extracting submodule weights.")
+        model.load_state_dict(state_dict['lstm_state_dict'])  # ⚠ 이건 이전 코드에서 하신 실수
+    else:
+        model.load_state_dict(state_dict)  # ✅ 이게 맞음
+
     model.to(device)
     model.eval()
     return model
+
+
 
 def evaluate(model, dataloader, device='cpu', threshold=0.65):
     all_labels = []

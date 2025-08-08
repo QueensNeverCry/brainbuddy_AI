@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 # === 설정 ===F
 label_root = r"C:/Users/user/Downloads/126.디스플레이 중심 안구 움직임 영상 데이터/01-1.정식개방데이터/Training/02.라벨링데이터/TL"
-output_root = r"C:/eye_dataset/train1"
+output_root = r"C:/eye_dataset/train2"
 output_seq_root = os.path.join(output_root, "lstm_seq")
 output_dyn_root = os.path.join(output_root, "dynamic_feature")
 os.makedirs(output_seq_root, exist_ok=True)
@@ -53,16 +53,15 @@ def compute_dynamic_features_per_frame_delta(df):
         if prev is None:
             delta_feats.append({
                 "delta_ear": 0,
-                "cam_dist_delta": 0,
                 "gaze_delta": 0,
                 "head_motion_delta": 0,
                 "eye_center_delta": 0,
+                "head_roll_velocity": 0,
             })
         else:
             delta_ear = ((current["l_EAR"] + current["r_EAR"]) / 2.0) - \
                         ((prev["l_EAR"] + prev["r_EAR"]) / 2.0)
-            cam_dist_delta = current["cam_distance"] - prev["cam_distance"]
-            
+
             gaze_delta = np.linalg.norm(current[["gaze_x", "gaze_y", "gaze_z"]].values -
                                         prev[["gaze_x", "gaze_y", "gaze_z"]].values)
 
@@ -79,25 +78,27 @@ def compute_dynamic_features_per_frame_delta(df):
             ], axis=0)
             eye_center_delta = np.linalg.norm(eye_center_now - eye_center_prev)
 
+            # 추가된 head_roll_velocity
+            head_roll_velocity = current["head_roll"] - prev["head_roll"]
+
             delta_feats.append({
                 "delta_ear": delta_ear,
-                "cam_dist_delta": cam_dist_delta,
                 "gaze_delta": gaze_delta,
                 "head_motion_delta": head_motion_delta,
                 "eye_center_delta": eye_center_delta,
+                "head_roll_velocity": head_roll_velocity,
             })
 
         prev = current
 
     return pd.DataFrame(delta_feats)
 
-# === 동적 feature 계산
+
 def compute_dynamic_features(df):
     try:
         features = {}
 
-        # === 1. Blink Count & Duration ===
-        # EAR(Eye Aspect Ratio) 기준: blink 발생은 EAR < 0.2 (Soukupová & Čech, 2016)
+        # === EAR 기반 blink
         l_ear = df["l_EAR"].fillna(0)
         r_ear = df["r_EAR"].fillna(0)
         ear = (l_ear + r_ear) / 2.0
@@ -105,45 +106,56 @@ def compute_dynamic_features(df):
         is_blinking = ear < blink_threshold
         blink_groups = (is_blinking != is_blinking.shift(1)).cumsum()
         blink_count = is_blinking.groupby(blink_groups).sum().gt(0).sum()
-        blink_duration = is_blinking.sum()  # total frames blinking
+        blink_duration = is_blinking.sum()
 
-        features["blink_count"] = int(blink_count)
-        features["blink_duration"] = int(blink_duration)
+        # === blink_rate_change
+        blink_rate_change = np.abs(np.diff(is_blinking.astype(int))).sum() / len(df)
 
-        # === 2. Cam Distance Smooth Diff ===
-        cam_distance = df["cam_distance"].ffill().bfill()
-        cam_diff = cam_distance.diff().abs().rolling(window=5).mean()
-        features["cam_distance_diff_smooth"] = float(cam_diff.mean())
-
-        # === 3. Gaze Variance ===
+        # === Gaze Variance (3D)
         gaze_xyz = df[["gaze_x", "gaze_y", "gaze_z"]]
-        features["gaze_variance"] = float(gaze_xyz.var().mean())  # variance over time
+        gaze_variance = float(gaze_xyz.var().mean())
 
-        # === 4. Saccade Frequency ===
-        # 기준: 시선 변화량이 100 px/sec 이상이면 saccade (Holmqvist et al., 2011)
-        gaze_xy = df[["l_eye_x", "l_eye_y", "r_eye_x", "r_eye_y"]].mean(axis=1)
-        diffs = np.sqrt(np.diff(gaze_xy.values) ** 2)
-        saccade_frequency = np.sum(diffs > 10)  # assuming ~30Hz, 10px change = saccade
-        features["saccade_frequency"] = int(saccade_frequency)
+        # === Gaze Position (2D)
+        gaze_x = df[["l_eye_x", "r_eye_x"]].mean(axis=1)
+        gaze_y = df[["l_eye_y", "r_eye_y"]].mean(axis=1)
+        gaze_xy = np.stack([gaze_x.values, gaze_y.values], axis=1)  # shape: (N, 2)
 
-        # === 5. Fixation Duration ===
-        # 기준: 200ms 이상 동일 위치 응시는 fixation (Duchowski, 2007)
-        fixation_flags = diffs < 3  # threshold for fixation
-        groups = (fixation_flags != np.roll(fixation_flags, 1)).cumsum()
-        fixation_durations = pd.Series(fixation_flags).groupby(groups).sum()
-        longest_fixation = fixation_durations.max() if not fixation_durations.empty else 0
-        features["fixation_duration"] = int(longest_fixation)
+        # === Saccade Amplitude (2D 거리 차이 평균)
+        gaze_diffs = np.linalg.norm(np.diff(gaze_xy, axis=0), axis=1)
+        saccade_amplitude = float(np.mean(gaze_diffs))
 
-        # === 6. Head Stability ===
-        # 기준: 머리 회전의 표준편차가 낮을수록 안정적 (표준 HCI 정의)
-        head_motion_std = df[["head_pitch", "head_yaw", "head_roll"]].std().mean()
-        features["head_stability"] = float(head_motion_std)
+        # === Gaze Entropy (시선 히트맵의 엔트로피)
+        bins = np.histogram2d(gaze_x, gaze_y, bins=10)[0]
+        prob = bins / np.sum(bins)
+        prob = prob[prob > 0]
+        gaze_entropy = -np.sum(prob * np.log(prob))
+
+        # === Fixation Dispersion
+        fixation_flags = gaze_diffs < 3  # threshold (픽세이션 구간)
+        fixation_points = gaze_xy[1:][fixation_flags]  # 첫 프레임 제외
+        fixation_dispersion = np.std(fixation_points) if len(fixation_points) > 0 else 0.0
+
+        # === ROI dwell time (is_in_roi 비율)
+        roi_dwell_time = df["is_in_roi"].sum() / len(df)
+
+        features.update({
+            "blink_count": int(blink_count),
+            "blink_duration": int(blink_duration),
+            "blink_rate_change": float(blink_rate_change),
+            "gaze_variance": gaze_variance,
+            "saccade_amplitude": saccade_amplitude,
+            "gaze_entropy": gaze_entropy,
+            "fixation_dispersion": fixation_dispersion,
+            "roi_dwell_time": roi_dwell_time,
+        })
 
         return features
 
     except Exception as e:
         print(f"❌ 동적 feature 계산 실패: {e}")
         return {}
+
+
 
 
 # === 필수 라벨 및 좌표 유효성 검사
@@ -207,7 +219,7 @@ def extract_features(json_path):
         l_center = label_dict["l_center"]["points"][0]
         r_center = label_dict["r_center"]["points"][0]
         roll, pitch, yaw = ann["pose"]["head"]
-        cam_distance = ann["distance"]["cam"]
+        #cam_distance = ann["distance"]["cam"]
 
         # === EAR 계산
         l_eyelid_points = label_dict.get("l_eyelid", {}).get("points", [])
@@ -226,7 +238,7 @@ def extract_features(json_path):
             "head_pitch": pitch,
             "head_yaw": yaw,
             "head_roll": roll,
-            "cam_distance": cam_distance,
+            #"cam_distance": cam_distance,
             "l_eye_x": l_center[0],
             "l_eye_y": l_center[1],
             "r_eye_x": r_center[0],
@@ -243,7 +255,7 @@ def extract_features(json_path):
         return None
 
 # === 메인 루프
-for seq in tqdm(range(1, 149), desc="시퀀스 처리"):
+for seq in tqdm(range(1, 41), desc="시퀀스 처리"):
     seq_str = f"{seq:03d}"
     for device in devices:
         json_dir = os.path.join(label_root, seq_str, "T1", device, json_subdir)
@@ -310,7 +322,7 @@ for seq in tqdm(range(1, 149), desc="시퀀스 처리"):
 
             # 정적 + 동적 feature concat
             combined_df = pd.concat([lstm_df, dyn_seq_df], axis=1)
-            expected_dim = 38
+            expected_dim = 36 
             if combined_df.shape[1] != expected_dim:
                 print(f"❗ 결합 feature 수 불일치: {prefix} → {combined_df.shape}")
                 continue
@@ -334,3 +346,7 @@ if missing_label_files:
     print(f"\n📄 누락된 항목 기록 저장 완료 → {log_path}")
 else:
     print("\n✅ 모든 JSON 파일에 필수 필드 및 좌표가 존재합니다.")
+
+#특징 이름 저장
+with open(os.path.join(output_root, "feature_names.json"), "w", encoding="utf-8") as f:
+    json.dump(list(combined_df.columns), f, indent=2)

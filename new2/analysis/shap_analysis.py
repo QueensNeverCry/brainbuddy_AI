@@ -12,7 +12,7 @@ rc('font', family = font)
 
 
 # === 파일 불러오기
-data = np.load("log/shap_inputs_train.npz")
+data = np.load("../log/shap_inputs_train.npz")
 x_seq = data["x_seq"]
 x_dyn = data["x_dyn"]
 y = data["labels"]
@@ -21,7 +21,6 @@ X_all = np.concatenate([x_seq, x_dyn], axis=1)
 # 1. 시퀀스 feature (38개)
 seq_feature_names = [
     "head_pitch", "head_yaw", "head_roll",
-    "cam_distance",
     "l_eye_x", "l_eye_y", "r_eye_x", "r_eye_y",
     "l_EAR", "r_EAR",
     "gaze_x", "gaze_y", "gaze_z",
@@ -31,10 +30,10 @@ seq_feature_names = [
 nan_mask = [f"{f}_nan" for f in seq_feature_names]
 delta_features = [
     "delta_ear",
-    "cam_dist_delta",
     "gaze_delta",
     "head_motion_delta",
-    "eye_center_delta"
+    "eye_center_delta",
+    "head_roll_velocity"
 ]
 delta_mask = [f"{f}_nan" for f in delta_features]
 
@@ -45,11 +44,12 @@ sequence_feature_names = seq_feature_names + nan_mask + delta_features + delta_m
 x_dyn_feature_names = [
     "blink_count",
     "blink_duration",
-    "cam_distance_diff_smooth",
+    "link_rate_change",
     "gaze_variance",
-    "saccade_frequency",
-    "fixation_duration",
-    "head_stability"
+    "saccade_amplitude",
+    "gaze_entropy",
+    "fixation_dispersion",	
+    "roi_dwell_time"
 ]
 
 # ✅ 최종 45개
@@ -87,7 +87,7 @@ shap.summary_plot(
 
 plt.title("SHAP Feature Importance - Binary Classification")
 plt.tight_layout()
-plt.savefig("log/shap/shap_binary_summary.png")
+plt.savefig("../log/shap/shap_binary_summary.png")
 plt.close()
 
 
@@ -123,5 +123,5 @@ plt.ylabel("Variance of |SHAP value| (샘플 간 분산)")
 plt.title("SHAP Feature 영향력 (평균 vs 분산)")
 plt.grid(True)
 plt.tight_layout()
-plt.savefig("log/shap/shap_summary_mean_vs_var.png")
+plt.savefig("../log/shap/shap_summary_mean_vs_var.png")
 plt.show()
