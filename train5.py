@@ -91,7 +91,8 @@ class PositionalEncoding(nn.Module):
         self.register_buffer('pe', pe)
 
     def forward(self, x):
-        return x + self.pe[:x.size(0), :]
+        seq_len = x.size(0)
+        return x + self.pe[:seq_len, :].to(x.device)
 
 class EngagementModel(nn.Module):
     def __init__(self, cnn_feat_dim=1280, fusion_feat_dim=5, d_model=128, nhead=8, num_layers=3):
@@ -164,6 +165,11 @@ def train(model_cnn, model_top, loader, criterion, optimizer, device, accumulati
         total_loss += loss.item()
 
         if (i + 1) % accumulation_steps == 0 or (i + 1) == len(loader):
+            # 그래디언트 클리핑
+            torch.nn.utils.clip_grad_norm_(
+                list(model_cnn.parameters()) + list(model_top.parameters()), 
+                max_norm=1.0
+            )
             optimizer.step()
             optimizer.zero_grad()
 
@@ -192,6 +198,24 @@ def load_data(pkl_files):
             all_data.extend(data)
     return all_data
 
+def check_batch_distribution(loader, num_batches=5):
+    """배치별 클래스 분포 확인"""
+    print("=" * 50)
+    print("배치별 클래스 분포 확인")
+    print("=" * 50)
+    
+    for i, (videos, fusion, labels) in enumerate(loader):
+        if i >= num_batches:
+            break
+        
+        class_0_count = (labels == 0).sum().item()
+        class_1_count = (labels == 1).sum().item()
+        total = len(labels)
+        
+        print(f"Batch {i+1}: Class 0: {class_0_count}/{total} ({class_0_count/total:.1%}) | Class 1: {class_1_count}/{total} ({class_1_count/total:.1%})")
+    
+    print("=" * 50)
+
 def evaluate_and_save_confusion_matrix(model_cnn, model_top, loader, device, epoch):
     model_cnn.eval()
     model_top.eval()
@@ -204,7 +228,7 @@ def evaluate_and_save_confusion_matrix(model_cnn, model_top, loader, device, epo
             videos, fusion = videos.to(device), fusion.to(device)
             features = model_cnn(videos)
             outputs = model_top(features, fusion)
-            preds = (torch.sigmoid(outputs) > 0.5).int().cpu().numpy()
+            preds = (torch.sigmoid(outputs) > 0.3).int().cpu().numpy()
             labels = labels.int().numpy()
             all_preds.extend(preds.flatten())
             all_labels.extend(labels.flatten())
@@ -229,7 +253,7 @@ def evaluate_metrics(model_cnn, model_top, loader, device):
             videos, fusion = videos.to(device), fusion.to(device)
             features = model_cnn(videos)
             outputs = model_top(features, fusion)
-            preds = (torch.sigmoid(outputs) > 0.5).int().cpu().numpy()
+            preds = (torch.sigmoid(outputs) > 0.3).int().cpu().numpy()
             labels = labels.int().numpy()
             all_preds.extend(preds.flatten())
             all_labels.extend(labels.flatten())
@@ -259,15 +283,22 @@ def main():
     train_dataset = VideoFolderDataset(train_data_list)
     val_dataset = VideoFolderDataset(val_data_list)
 
-    train_loader = DataLoader(train_dataset, batch_size=2, shuffle=True, num_workers=8, pin_memory=True)
-    val_loader = DataLoader(val_dataset, batch_size=2, shuffle=False, num_workers=8, pin_memory=True)
+    train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True, num_workers=8, pin_memory=True)
+    val_loader = DataLoader(val_dataset, batch_size=8, shuffle=False, num_workers=8, pin_memory=True)
+
+    print("🔍 Training 데이터 배치 분포 확인:")
+    check_batch_distribution(train_loader, num_batches=3)
+    
+    print("🔍 Validation 데이터 배치 분포 확인:")
+    check_batch_distribution(val_loader, num_batches=3)
 
     # 모델 초기화 (Transformer 기반으로 변경)
     cnn = CNNEncoder().to(device)
     model = EngagementModel(d_model=128, nhead=8, num_layers=3).to(device)
-    criterion = nn.BCEWithLogitsLoss()
-    optimizer = torch.optim.Adam(list(cnn.parameters()) + list(model.parameters()), lr=1e-4)
-
+    pos_weight = torch.tensor([1.2]).to(device)  # 소수 클래스에 더 높은 가중치
+    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+    optimizer = torch.optim.Adam(list(cnn.parameters()) + list(model.parameters()), lr=1e-5) 
+    
     best_val_loss = float('inf')
     best_model_path = "./log/best_model2.pt"
     checkpoint_path = "./log/last_checkpoint2.pt"
