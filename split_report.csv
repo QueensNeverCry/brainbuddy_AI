@@ -1,0 +1,4 @@
+﻿split,n,pos,neg,n_groups,both_classes
+train,1024,623,401,4,True
+val,220,134,86,4,True
+test,220,133,87,4,True
