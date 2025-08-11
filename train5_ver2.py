@@ -13,15 +13,30 @@ from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, recall_sco
 import math  # Positional Encoding을 위한 math 추가
 from torch.cuda.amp import autocast, GradScaler #Mixed Precision
 
-# ------------------ Dataset (기존과 동일) ------------------
+# ------------------ 개선된 데이터 증강 Dataset ------------------
 class VideoFolderDataset(Dataset):
-    def __init__(self, data_list, transform=None):
+    def __init__(self, data_list, transform=None, is_training=True):
         self.data_list = []
-        self.transform = transform or transforms.Compose([
-            transforms.Resize((224, 224)),
-            transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-        ])
+        self.is_training = is_training
+        
+        # ✅ 개선된 데이터 증강 (훈련/검증 구분)
+        if is_training:
+            self.transform = transform or transforms.Compose([
+                transforms.Resize((256, 256)),  # 더 큰 해상도
+                transforms.RandomResizedCrop(224, scale=(0.8, 1.0)),  # 랜덤 크롭
+                transforms.RandomHorizontalFlip(p=0.5),
+                transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.2, hue=0.1),
+                transforms.RandomRotation(degrees=5),
+                transforms.ToTensor(),
+                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            ])
+        else:
+            # 검증용은 기본 변환만
+            self.transform = transform or transforms.Compose([
+                transforms.Resize((224, 224)),
+                transforms.ToTensor(),
+                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            ])
 
         for folder_path, label in data_list:
             if os.path.isdir(folder_path):
@@ -47,7 +62,6 @@ class VideoFolderDataset(Dataset):
                 print(f"⚠️ 이미지 로드 실패: {img_path}")
                 continue
         
-        
         while len(frames) < 30:
             frames.append(frames[-1] if frames else torch.zeros(3, 224, 224))
         
@@ -62,18 +76,22 @@ class VideoFolderDataset(Dataset):
 
         return video, fusion, torch.tensor(label, dtype=torch.float32)
 
-# ------------------ Model (CNN은 기존과 동일) ------------------
+# ------------------ 개선된 CNN Encoder ------------------
 class CNNEncoder(nn.Module):
     def __init__(self, output_dim=1280):
         super().__init__()
         mobilenet = models.mobilenet_v2(weights=models.MobileNet_V2_Weights.DEFAULT)
         self.features = mobilenet.features
         self.avgpool = nn.AdaptiveAvgPool2d((4, 4))
+        
+        # ✅ 더 큰 FC 레이어와 개선된 정규화
         self.fc = nn.Sequential(
             nn.Linear(1280 * 4 * 4, 2048),
+            nn.BatchNorm1d(2048),  # BatchNorm 추가
             nn.ReLU(),
-            nn.Dropout(0.3),
+            nn.Dropout(0.4),  # 드롭아웃 증가
             nn.Linear(2048, output_dim),
+            nn.BatchNorm1d(output_dim),
             nn.ReLU()
         )
 
@@ -86,7 +104,7 @@ class CNNEncoder(nn.Module):
         x = self.fc(x)
         return x.view(B, T, -1)
 
-# ------------------ 새로운 Transformer 기반 모델 ------------------
+# ------------------ 개선된 Transformer 모델 ------------------
 class PositionalEncoding(nn.Module):
     def __init__(self, d_model, max_len=5000):
         super().__init__()
@@ -102,43 +120,55 @@ class PositionalEncoding(nn.Module):
         seq_len = x.size(0)
         return x + self.pe[:seq_len, :].to(x.device)
 
-class EngagementModel(nn.Module):
-    def __init__(self, cnn_feat_dim=1280, fusion_feat_dim=5, d_model=128, nhead=8, num_layers=3):
+class EngagementModelV2(nn.Module):
+    def __init__(self, cnn_feat_dim=1280, fusion_feat_dim=5, d_model=256, nhead=8, num_layers=4):  # ✅ 더 큰 모델
         super().__init__()
         
         # 입력 프로젝션: CNN 특징을 Transformer 차원으로 변환
-        self.input_projection = nn.Linear(cnn_feat_dim, d_model)
+        self.input_projection = nn.Sequential(
+            nn.Linear(cnn_feat_dim, d_model),
+            nn.LayerNorm(d_model),  # LayerNorm 추가
+            nn.ReLU(),
+            nn.Dropout(0.1)
+        )
         
         # Positional Encoding
         self.pos_encoder = PositionalEncoding(d_model)
         
-        # Transformer Encoder Layer
+        # ✅ 개선된 Transformer Encoder Layer
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=d_model,
             nhead=nhead,
             dim_feedforward=d_model * 4,
-            dropout=0.1,
-            activation='relu',
-            batch_first=True
+            dropout=0.15,  # 드롭아웃 증가
+            activation='gelu',  # ReLU → GELU
+            batch_first=True,
+            norm_first=True  # Pre-LN 구조
         )
         self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
         
-        # 시퀀스 집약을 위한 Global Average Pooling
-        self.global_pool = nn.AdaptiveAvgPool1d(1)
+        # ✅ 개선된 Pooling (Max + Average 조합)
+        self.global_avg_pool = nn.AdaptiveAvgPool1d(1)
+        self.global_max_pool = nn.AdaptiveMaxPool1d(1)
         
-        # 최종 분류기
+        # ✅ 더 복잡한 최종 분류기
         self.fc = nn.Sequential(
-            nn.Linear(d_model + fusion_feat_dim, 64),
-            nn.ReLU(),
+            nn.Linear(d_model * 2 + fusion_feat_dim, 512),  # Max + Avg pooling
+            nn.LayerNorm(512),
+            nn.GELU(),
+            nn.Dropout(0.2),
+            nn.Linear(512, 128),
+            nn.LayerNorm(128),
+            nn.GELU(),
             nn.Dropout(0.1),
-            nn.Linear(64, 1)
+            nn.Linear(128, 1)
         )
 
     def forward(self, cnn_feats, fusion_feats):
         # 입력 프로젝션
         x = self.input_projection(cnn_feats)  # (B, T, d_model)
         
-        # Positional Encoding 추가 (시퀀스 순서 정보)
+        # Positional Encoding 추가
         x = x.transpose(0, 1)  # (T, B, d_model)
         x = self.pos_encoder(x)
         x = x.transpose(0, 1)  # (B, T, d_model)
@@ -146,16 +176,17 @@ class EngagementModel(nn.Module):
         # Transformer Encoder
         transformer_out = self.transformer_encoder(x)  # (B, T, d_model)
         
-        # Global Average Pooling으로 시퀀스 집약
-        pooled = self.global_pool(transformer_out.transpose(1, 2)).squeeze(-1)  # (B, d_model)
+        # ✅ Max + Average Pooling 조합
+        avg_pooled = self.global_avg_pool(transformer_out.transpose(1, 2)).squeeze(-1)  # (B, d_model)
+        max_pooled = self.global_max_pool(transformer_out.transpose(1, 2)).squeeze(-1)  # (B, d_model)
+        pooled = torch.cat([avg_pooled, max_pooled], dim=1)  # (B, d_model * 2)
         
         # Fusion features 결합
-        combined = torch.cat([pooled, fusion_feats], dim=1)  # (B, d_model + 5)
+        combined = torch.cat([pooled, fusion_feats], dim=1)  # (B, d_model * 2 + 5)
         
-        # 최종 출력
         return self.fc(combined)
 
-# ------------------ Training Functions (기존과 동일) ------------------
+# ------------------ 기존 Training Functions (동일) ------------------
 def train(model_cnn, model_top, loader, criterion, optimizer, device, scaler, accumulation_steps=4):
     model_cnn.train()
     model_top.train()
@@ -163,29 +194,24 @@ def train(model_cnn, model_top, loader, criterion, optimizer, device, scaler, ac
     optimizer.zero_grad()
 
     for i, (videos, fusion, labels) in enumerate(tqdm(loader, desc="Train")):
-        # 🔥 non_blocking으로 GPU 전송 최적화
         videos = videos.to(device, non_blocking=True)
         fusion = fusion.to(device, non_blocking=True)
         labels = labels.to(device, non_blocking=True).unsqueeze(1)
 
-        # 🔥 Mixed Precision 적용 - autocast로 감싸기
         with autocast():
             features = model_cnn(videos)
             output = model_top(features, fusion)
             loss = criterion(output, labels)
 
-        # 🔥 기존 loss.backward()를 scaler로 변경
         scaler.scale(loss).backward()
         total_loss += loss.item()
 
         if (i + 1) % accumulation_steps == 0 or (i + 1) == len(loader):
-            # 🔥 그래디언트 클리핑도 scaler와 함께 사용
             scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(
                 list(model_cnn.parameters()) + list(model_top.parameters()), 
                 max_norm=1.0
             )
-            # 🔥 optimizer.step()을 scaler로 변경
             scaler.step(optimizer)
             scaler.update()
             optimizer.zero_grad()
@@ -199,12 +225,10 @@ def validate(model_cnn, model_top, loader, criterion, device):
 
     with torch.no_grad():
         for videos, fusion, labels in tqdm(loader, desc="Validation"):
-            # 🔥 non_blocking 최적화
             videos = videos.to(device, non_blocking=True)
             fusion = fusion.to(device, non_blocking=True)
             labels = labels.to(device, non_blocking=True).unsqueeze(1)
             
-            # 🔥 Mixed Precision 적용
             with autocast():
                 features = model_cnn(videos)
                 outputs = model_top(features, fusion)
@@ -220,11 +244,9 @@ def load_data(pkl_files):
             data = pickle.load(f)
             all_data.extend(data)
     
-    # 🔥 로딩 후 즉시 셔플링
     import random
     random.shuffle(all_data)
     return all_data
-
 
 def check_batch_distribution(loader, num_batches=5):
     """배치별 클래스 분포 확인"""
@@ -244,7 +266,7 @@ def check_batch_distribution(loader, num_batches=5):
     
     print("=" * 50)
 
-def evaluate_and_save_confusion_matrix(model_cnn, model_top, loader, device, epoch):
+def evaluate_and_save_confusion_matrix(model_cnn, model_top, loader, device, epoch, save_dir):
     model_cnn.eval()
     model_top.eval()
 
@@ -264,10 +286,12 @@ def evaluate_and_save_confusion_matrix(model_cnn, model_top, loader, device, epo
     cm = confusion_matrix(all_labels, all_preds)
     disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=[0, 1])
     disp.plot(cmap=plt.cm.Blues)
-    plt.title(f"Confusion Matrix - Epoch {epoch+1}")
-    plt.savefig(f"./log/confusion_matrix/train1/conf_matrix_epoch_{epoch+1}.png")
+    plt.title(f"Confusion Matrix V2 - Epoch {epoch+1}")
+    
+    os.makedirs(save_dir, exist_ok=True)
+    plt.savefig(f"{save_dir}/conf_matrix_v2_epoch_{epoch+1}.png")
     plt.close()
-    print(f"📊 Confusion matrix saved: conf_matrix_epoch_{epoch+1}.png")
+    print(f"📊 Confusion matrix saved: conf_matrix_v2_epoch_{epoch+1}.png")
 
 def evaluate_metrics(model_cnn, model_top, loader, device):
     model_cnn.eval()
@@ -290,19 +314,19 @@ def evaluate_metrics(model_cnn, model_top, loader, device):
     f1 = f1_score(all_labels, all_preds, zero_division=0)
     return recall, f1
 
-# ------------------ Main Function (기존과 동일, 모델 초기화 부분만 변경) ------------------
+# ------------------ Main Function (Version 2) ------------------
 def main():
-    torch.backends.cudnn.benchmark = True  # 성능 향상
-    torch.cuda.empty_cache()  # 메모리 정리
+    torch.backends.cudnn.benchmark = True
+    torch.cuda.empty_cache()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"🔥 사용 디바이스: {device}")
+    print("🚀 **Version 2 - 개선된 모델 훈련 시작**")
     
-    # GPU 메모리 사용량 확인
     if torch.cuda.is_available():
         print(f"📊 GPU: {torch.cuda.get_device_name(0)}")
         print(f"📊 GPU 메모리: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f}GB")
-        
-    # 수정된 경로: 사용자가 제공한 Desktop 기반 경로 사용
+    
+    # ✅ Version 2 전용 경로 설정 (기존 모델 보존)
     base_path = r"C:\Users\user\Desktop\brainbuddy_AI\preprocess2\pickle_labels"
     train_pkl_files = [
         f"{base_path}\\train\\20_01.pkl",
@@ -316,11 +340,12 @@ def main():
     train_data_list = load_data(train_pkl_files)
     val_data_list = load_data(val_pkl_files)
 
-    train_dataset = VideoFolderDataset(train_data_list)
-    val_dataset = VideoFolderDataset(val_data_list)
+    # ✅ 개선된 데이터셋 (훈련/검증 구분)
+    train_dataset = VideoFolderDataset(train_data_list, is_training=True)   # 데이터 증강 적용
+    val_dataset = VideoFolderDataset(val_data_list, is_training=False)      # 기본 변환만
 
-    train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=8, pin_memory=True)
-    val_loader = DataLoader(val_dataset, batch_size=4, shuffle=False, num_workers=8, pin_memory=True)
+    train_loader = DataLoader(train_dataset, batch_size=3, shuffle=True, num_workers=6, pin_memory=True)  # 배치 크기 조정
+    val_loader = DataLoader(val_dataset, batch_size=3, shuffle=False, num_workers=6, pin_memory=True)
 
     print("🔍 Training 데이터 배치 분포 확인:")
     check_batch_distribution(train_loader, num_batches=3)
@@ -328,23 +353,42 @@ def main():
     print("🔍 Validation 데이터 배치 분포 확인:")
     check_batch_distribution(val_loader, num_batches=3)
 
-    # 모델 초기화 (Transformer 기반으로 변경)
+    # ✅ Version 2 개선된 모델 초기화
     cnn = CNNEncoder().to(device)
-    model = EngagementModel(d_model=128, nhead=8, num_layers=3).to(device)
-    pos_weight = torch.tensor([1.2]).to(device)  # 소수 클래스에 더 높은 가중치
-    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
-    optimizer = torch.optim.Adam(list(cnn.parameters()) + list(model.parameters()), lr=1e-5) 
-    scaler = GradScaler()  # Mixed Precision을 위한 Scaler 생성
+    model = EngagementModelV2(d_model=256, nhead=8, num_layers=4).to(device)  # 더 큰 모델
     
-    best_val_loss = float('inf')
-    best_model_path = "./log/best_model2.pt"
-    checkpoint_path = "./log/last_checkpoint2.pt"
+    # ✅ 개선된 Loss & Optimizer
+    pos_weight = torch.tensor([1.5]).to(device)  # 가중치 증가
+    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+    
+    # AdamW + 학습률 스케줄러
+    optimizer = torch.optim.AdamW(
+        list(cnn.parameters()) + list(model.parameters()), 
+        lr=3e-6,           # 더 낮은 학습률
+        weight_decay=1e-4,  # L2 정규화
+        betas=(0.9, 0.999)
+    )
+    
+    # 코사인 어닐링 스케줄러
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=15, eta_min=1e-7
+    )
+    
+    scaler = GradScaler()
+    
+    # ✅ Version 2 전용 저장 경로
+    os.makedirs("./log/v2", exist_ok=True)
+    best_model_path = "./log/v2/best_model_v2.pt"
+    checkpoint_path = "./log/v2/last_checkpoint_v2.pt"
+    confusion_save_dir = "./log/v2/confusion_matrix"
     log_history = []
 
     start_epoch = 0
-    patience = 3
+    patience = 5  # patience 증가
     patience_counter = 0
+    best_val_loss = float('inf')
 
+    # Resume 기능 (필요시 주석 해제)
     """
     if os.path.exists(checkpoint_path):
         print(f"🔄 Resuming training from {checkpoint_path}")
@@ -352,13 +396,26 @@ def main():
         cnn.load_state_dict(ckpt['cnn_state_dict'])
         model.load_state_dict(ckpt['model_state_dict'])
         optimizer.load_state_dict(ckpt['optimizer_state_dict'])
+        scheduler.load_state_dict(ckpt['scheduler_state_dict'])
         start_epoch = ckpt['epoch'] + 1
         best_val_loss = ckpt.get('best_val_loss', float('inf'))
         print(f"Resumed from epoch {start_epoch} (best_val_loss={best_val_loss:.4f})")
     """
 
-    num_epochs = 10
+    num_epochs = 15  # 에포크 증가
+    
+    print(f"📈 **하이퍼파라미터 설정**")
+    print(f"   - 모델 크기: d_model={model.input_projection[0].out_features}, layers={4}")
+    print(f"   - 학습률: {3e-6}, Weight decay: {1e-4}")
+    print(f"   - 배치 크기: {3}, 에포크: {num_epochs}")
+    print(f"   - 데이터 증강: 활성화")
+    print("=" * 60)
+    
     for epoch in range(start_epoch, num_epochs):
+        # ✅ 현재 학습률 출력
+        current_lr = scheduler.get_last_lr()[0]
+        print(f"[Epoch {epoch+1}/{num_epochs}] Learning Rate: {current_lr:.2e}")
+        
         train_loss = train(cnn, model, train_loader, criterion, optimizer, device, scaler, accumulation_steps=4)
         val_loss = validate(cnn, model, val_loader, criterion, device)
 
@@ -371,46 +428,63 @@ def main():
             "train_loss": train_loss,
             "val_loss": val_loss,
             "recall": recall,
-            "f1_score": f1
+            "f1_score": f1,
+            "learning_rate": current_lr
         })
 
-        evaluate_and_save_confusion_matrix(cnn, model, val_loader, device, epoch)
+        evaluate_and_save_confusion_matrix(cnn, model, val_loader, device, epoch, confusion_save_dir)
 
+        # ✅ 베스트 모델 저장 (스케줄러 상태도 포함)
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             torch.save({
                 'cnn_state_dict': cnn.state_dict(),
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
+                'scheduler_state_dict': scheduler.state_dict(),
                 'epoch': epoch,
-                'val_loss': val_loss
+                'val_loss': val_loss,
+                'hyperparameters': {
+                    'd_model': 256,
+                    'num_layers': 4,
+                    'learning_rate': 3e-6,
+                    'weight_decay': 1e-4
+                }
             }, best_model_path)
-            print(f"✅ Best model saved at epoch {epoch+1} with val_loss {val_loss:.4f}")
+            print(f"✅ Best model V2 saved at epoch {epoch+1} with val_loss {val_loss:.4f}")
+            patience_counter = 0
         else:
             patience_counter += 1
             print(f"Early stopping patience {patience_counter}/{patience}")
             if patience_counter >= patience:
-                print(f"==== Early stopping Triggered===")
+                print(f"==== Early stopping Triggered ====")
                 break
 
+        # 체크포인트 저장
         torch.save({
             'cnn_state_dict': cnn.state_dict(),
             'model_state_dict': model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
+            'scheduler_state_dict': scheduler.state_dict(),
             'epoch': epoch,
             'best_val_loss': best_val_loss
         }, checkpoint_path)
+        
+        # ✅ 스케줄러 스텝
+        scheduler.step()
         print(f"💾 Checkpoint saved at epoch {epoch+1}")
 
+    # 로그 저장
     log_df = pd.DataFrame(log_history)
-    log_df.to_csv("./log/train_log2.csv", index=False)
-    print("📄 Training log saved to train_log.csv")
+    log_df.to_csv("./log/v2/train_log_v2.csv", index=False)
+    print("📄 Training log V2 saved to ./log/v2/train_log_v2.csv")
 
+    # 베스트 모델 로드
     checkpoint = torch.load(best_model_path, map_location=device)
     cnn.load_state_dict(checkpoint['cnn_state_dict'])
     model.load_state_dict(checkpoint['model_state_dict'])
-    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-    print(f"🔁 Loaded best model from epoch {checkpoint['epoch']+1} (val_loss={checkpoint['val_loss']:.4f})")
+    print(f"🔁 Loaded best V2 model from epoch {checkpoint['epoch']+1} (val_loss={checkpoint['val_loss']:.4f})")
+    print("🎉 **Version 2 모델 훈련 완료!**")
 
 if __name__ == '__main__':
     main()
