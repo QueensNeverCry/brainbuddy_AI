@@ -1,7 +1,7 @@
 import os
 
 # 대상 최상위 경로 설정
-BASE_DIR = r"C:/AIhub_frames/valid"
+BASE_DIR = r"C:/AIhub_frames/test"
 TARGET_FILENAME = "fusion_features.pkl"
 
 def delete_all_fusion_features(base_dir):

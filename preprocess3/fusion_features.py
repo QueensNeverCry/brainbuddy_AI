@@ -7,7 +7,7 @@ from tqdm import tqdm
 from multiprocessing import Pool, cpu_count
 
 # 설정
-BASE_DIR = r"C:/AIhub_frames/train"
+BASE_DIR = r"C:/AIhub_frames/test"
 FUSION_FEATURE_DIM = 5
 IMAGE_SIZE = (640, 360)
 
