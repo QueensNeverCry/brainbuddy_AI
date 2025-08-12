@@ -53,6 +53,7 @@ cnn_features/features/
 cnn_features/features_30/
 visualizations/
 EDA/eda_out/
+EDA/eda_outputs/
 # ▶ PyTorch & Checkpoints
 *.pt
 *.pth
