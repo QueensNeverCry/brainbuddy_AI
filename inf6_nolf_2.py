@@ -84,48 +84,50 @@ class VideoFolderDataset(Dataset):
 class CNNEncoder(nn.Module):
     def __init__(self, backbone="resnet18"):
         super().__init__()
+        assert backbone == "resnet18", "현재 ckpt는 resnet18 기준"
+        m = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
+        m.fc = nn.Identity()
+        # ResNet 원래 모듈 이름 유지 → ckpt의 cnn.conv1/layer*와 일치
+        self.conv1 = m.conv1
+        self.bn1 = m.bn1
+        self.relu = m.relu
+        self.maxpool = m.maxpool
+        self.layer1 = m.layer1
+        self.layer2 = m.layer2
+        self.layer3 = m.layer3
+        self.layer4 = m.layer4
+        self.avgpool = m.avgpool
         self.out_dim = 512
-        if backbone == "resnet18":
-            m = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
-            self.encoder = nn.Sequential(*list(m.children())[:-1])  # (B,512,1,1)
-            self.out_dim = 512
-        elif backbone == "efficientnet_b0":
-            m = models.efficientnet_b0(weights=models.EfficientNet_B0_Weights.IMAGENET1K_V1)
-            self.encoder = nn.Sequential(*list(m.features), nn.AdaptiveAvgPool2d((1,1)))
-            self.out_dim = 1280
-        else:
-            raise ValueError("Unsupported backbone")
+    def forward(self, x):
+        x = self.conv1(x); x = self.bn1(x); x = self.relu(x); x = self.maxpool(x)
+        x = self.layer1(x); x = self.layer2(x); x = self.layer3(x); x = self.layer4(x)
+        x = self.avgpool(x)
+        return torch.flatten(x, 1)
 
-    def forward(self, x):  # (B,3,H,W)
-        f = self.encoder(x)
-        return f.view(f.size(0), -1)
 
 class CNN_LSTM(nn.Module):
-    def __init__(self, backbone="resnet18", hidden=256, num_layers=2, bidirectional=True, dropout=0.3):
+    def __init__(self, backbone="resnet18", hidden=256, num_layers=1, bidirectional=False, dropout=0.0):
         super().__init__()
         self.cnn = CNNEncoder(backbone=backbone)
         self.lstm = nn.LSTM(
-            input_size=self.cnn.out_dim,
-            hidden_size=hidden,
-            num_layers=num_layers,
-            dropout=0.0 if num_layers==1 else 0.2,
-            bidirectional=bidirectional,
+            input_size=self.cnn.out_dim,   # 512
+            hidden_size=hidden,            # 256
+            num_layers=num_layers,         # 1
+            dropout=0.0,                   # 1층이면 0
+            bidirectional=bidirectional,   # False
             batch_first=True,
         )
         d = 2 if bidirectional else 1
-        self.head = nn.Sequential(
-            nn.Linear(hidden*d, hidden),
-            nn.ReLU(inplace=True),
-            nn.Dropout(dropout),
-            nn.Linear(hidden, 1),
-        )
+        # ckpt는 classifier.1만 존재(Linear 256→1)
+        self.classifier = nn.Sequential(nn.Linear(hidden*d, 1))
+
     def forward(self, x):  # (B,T,3,H,W)
         B,T,C,H,W = x.shape
         x = x.reshape(B*T, C, H, W)
         feats = self.cnn(x).view(B, T, -1)
         seq, _ = self.lstm(feats)
         pooled = seq.mean(dim=1)
-        return self.head(pooled).squeeze(1)
+        return self.classifier(pooled).squeeze(1)
 
 # ------------------ Utils ------------------
 def load_data(pkl_files):
@@ -146,25 +148,26 @@ def main():
         # "C:/KSEB/brainbuddy_AI/preprocess2/pickle_labels/test/20_04.pkl",
         "C:/KSEB/brainbuddy_AI/preprocess2/pickle_labels/test/another_data.pkl",
     ]
-    best_model_path = "./log/train4/best_model/best_model_epoch_4.pt"  # 필요시 수정
+    best_model_path = "C:/Users/user/Downloads/best_model.pth"
+    #best_model_path = "./log/train4/best_model/best_model_epoch_4.pt"  # 필요시 수정
     #best_model_path = "./log/train5/best_model/best_model_epoch_3.pt"
     # 데이터
     test_data_list = load_data(test_pkl_files)
     test_dataset = VideoFolderDataset(test_data_list)
     test_loader = DataLoader(test_dataset, batch_size=8, shuffle=False, num_workers=16, pin_memory=True)
 
-    # 모델 로드
-    cnn = CNNEncoder().to(device)
-    model = EngagementModelNoFusion().to(device)
-
-    if not os.path.exists(best_model_path):
-        raise FileNotFoundError(f"Checkpoint not found: {best_model_path}")
+    model = CNN_LSTM(backbone="resnet18").to(device)
 
     ckpt = torch.load(best_model_path, map_location=device)
-    cnn.load_state_dict(ckpt['cnn_state_dict'])
-    model.load_state_dict(ckpt['model_state_dict'])  # ✅ 이제 fc.0 크기 일치(64,128)
+    sd = ckpt.get("model", ckpt)   # 'model' 키가 있으면 그걸, 없으면 전체를 state_dict로 간주
+    # DataParallel 저장본이면 'module.' 접두사 제거 필요할 수 있음:
+    from collections import OrderedDict
+    new_sd = OrderedDict((k.replace("module.", ""), v) for k, v in sd.items())
 
-    cnn.eval()
+
+    missing, unexpected = model.load_state_dict(new_sd, strict=False)
+    print("missing:", missing, "unexpected:", unexpected)
+
     model.eval()
 
     # 추론 & 메트릭
@@ -173,10 +176,10 @@ def main():
     with torch.inference_mode():
         for videos, labels in tqdm(test_loader, desc="Test"):  # ✅ (videos, labels)만
             videos = videos.to(device)
-            feats = cnn(videos)
-            logits = model(feats)  # ✅ fusion 없음
-            probs = torch.sigmoid(logits).squeeze(1).detach().cpu().numpy()
-            preds = (probs >= 0.5).astype(np.int32)
+            #feats = cnn(videos)
+            logits = model(videos)  # ✅ fusion 없음
+            probs = torch.sigmoid(logits).detach().cpu().numpy()
+            preds = (probs >= 0.25).astype(np.int32)
             labels = labels.int().numpy()
 
             all_probs.extend(probs.tolist())
