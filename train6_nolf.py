@@ -14,6 +14,35 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, recall_score, f1_score, accuracy_score
 import torch.nn.functional as F
+import torch.nn as nn
+
+class BCEWithLogitsLossSmooth(nn.Module):
+    """
+    Binary CE + label smoothing.
+    mode='01'  : 0 -> ε, 1 -> 1-ε   (가장 직관적)
+    mode='half': 0 -> ε/2, 1 -> 1-ε/2 (좀 더 온건)
+    """
+    def __init__(self, eps=0.1, mode='01', reduction='mean', weight=None, pos_weight=None):
+        super().__init__()
+        assert 0.0 <= eps < 0.5
+        self.eps = eps
+        self.mode = mode
+        self.reduction = reduction
+        self.register_buffer('weight', weight if weight is not None else None)
+        self.register_buffer('pos_weight', pos_weight if pos_weight is not None else None)
+
+    def forward(self, input, target):
+        if self.mode == '01':
+            # 0→ε, 1→1-ε
+            target = target * (1 - self.eps) + (1 - target) * self.eps
+        elif self.mode == 'half':
+            # 0→ε/2, 1→1-ε/2
+            target = target * (1 - self.eps) + 0.5 * self.eps
+        else:
+            raise ValueError("mode must be '01' or 'half'")
+        return F.binary_cross_entropy_with_logits(
+            input, target, weight=self.weight, pos_weight=self.pos_weight, reduction=self.reduction
+        )
 
 # ------------------ Dataset ------------------
 class VideoFolderDataset(Dataset):
@@ -187,11 +216,11 @@ def evaluate_and_save_confusion_matrix(model_cnn, model_top, loader, device, epo
             all_labels.extend(labels.flatten())
 
     cm = confusion_matrix(all_labels, all_preds)
-    os.makedirs("./log/train5/confusion_matrix", exist_ok=True)
+    os.makedirs("./log/train6/confusion_matrix", exist_ok=True)
     disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=[0, 1])
     disp.plot(cmap=plt.cm.Blues)
     plt.title(f"Confusion Matrix - Epoch {epoch+1}")
-    plt.savefig(f"./log/train5/confusion_matrix/conf_matrix_epoch_{epoch+1}.png")
+    plt.savefig(f"./log/train6/confusion_matrix/conf_matrix_epoch_{epoch+1}.png")
     plt.close()
     print(f"📊 Confusion matrix saved: conf_matrix_epoch_{epoch+1}.png")
 
@@ -301,7 +330,7 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     start_epoch = 0
-    patience = 4
+    patience = 3
     patience_counter = 0
     num_epochs = 12
 
@@ -325,7 +354,8 @@ def main():
 
     cnn = CNNEncoder().to(device)
     model = EngagementModelNoFusion().to(device)
-    criterion = nn.BCEWithLogitsLoss()
+    criterion = BCEWithLogitsLossSmooth(eps=0.1, mode='01')
+    #criterion = nn.BCEWithLogitsLoss()
     #optimizer = torch.optim.Adam(list(cnn.parameters()) + list(model.parameters()), lr=1e-4)
     optimizer = torch.optim.AdamW(
     list(cnn.parameters()) + list(model.parameters()),
@@ -341,12 +371,12 @@ def main():
 
     best_val_loss = float('inf')
     best_model_path = None
-    best_model_dir = "./log/train5/best_model"
+    best_model_dir = "./log/train6/best_model"
     os.makedirs(best_model_dir, exist_ok=True)
-    os.makedirs("./log/train5", exist_ok=True)
+    os.makedirs("./log/train6", exist_ok=True)
 
-    checkpoint_path = "./log/train5/last_checkpoint.pt"
-    log_csv_path = "./log/train5/train_log4.csv"
+    checkpoint_path = "./log/train6/last_checkpoint.pt"
+    log_csv_path = "./log/train6/train_log4.csv"
 
 
     # --- 체크포인트 불러오기 ---
@@ -429,7 +459,7 @@ def main():
         else:
             patience_counter += 1
             print(f"⏳ Early stopping patience: {patience_counter}/{patience}")
-            if patience_counter >= patience:
+            if patience_counter > patience:
                 print("🛑 Early stopping triggered!")
                 break
 

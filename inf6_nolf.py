@@ -11,7 +11,6 @@ from PIL import Image
 import matplotlib.pyplot as plt
 import numpy as np
 from torchvision.transforms import InterpolationMode
-
 from sklearn.metrics import (
     confusion_matrix,
     ConfusionMatrixDisplay,
@@ -142,6 +141,7 @@ def main():
     test_pkl_files = [
         # "C:/KSEB/brainbuddy_AI/preprocess2/pickle_labels/test/20_02.pkl",
         # "C:/KSEB/brainbuddy_AI/preprocess2/pickle_labels/test/20_04.pkl",
+        # "C:/KSEB/brainbuddy_AI/preprocess2/pickle_labels/test/another_data.pkl",
         "C:/KSEB/brainbuddy_AI/preprocess2/pickle_labels/test/another_data.pkl",
     ]
     best_model_path = "./log/train4/best_model/best_model_epoch_4.pt"  # 필요시 수정

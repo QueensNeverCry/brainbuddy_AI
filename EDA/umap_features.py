@@ -36,14 +36,15 @@ from sklearn.decomposition import PCA
 # --------- Config ------------
 # =============================
 PICKLES = [
-    r"C:/KSEB/brainbuddy_AI/preprocess2/pickle_labels/valid/20_01.pkl",
-    r"C:/KSEB/brainbuddy_AI/preprocess2/pickle_labels/valid/20_03.pkl",
+    # r"C:/KSEB/brainbuddy_AI/preprocess2/pickle_labels/valid/20_01.pkl",
+    # r"C:/KSEB/brainbuddy_AI/preprocess2/pickle_labels/valid/20_03.pkl",
+    r"C:/KSEB/brainbuddy_AI/preprocess2/pickle_labels/test/another_data.pkl"
 ]
 CHECKPOINT_PATH = r"../log/train3_nolf/best_model/best_model_epoch_1.pt"  # <- 수정하세요
 NUM_FRAMES = 30
-BATCH_SIZE = 8
+BATCH_SIZE = 2
 NUM_WORKERS = 8
-OUT_FIG = "../log/analysis/umap_threeway.png"
+OUT_FIG = "../log/analysis/umap_threeway_another.png"
 N_NEIGHBORS = 30
 MIN_DIST = 0.05
 USE_PCA_DIM = 50   # UMAP 전에 차원 축소(속도/안정성)
