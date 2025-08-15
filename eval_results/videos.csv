@@ -1,0 +1,9 @@
+﻿video_path,filename,n_windows,mean_prob,pred_majority,pred_meanprob,label
+C:\Users\user\Pictures\Camera Roll\focused_1.mp4,focused_1.mp4,300,0.864943674604098,1,1,1
+C:\Users\user\Pictures\Camera Roll\focused_2.mp4,focused_2.mp4,300,0.6589459041257699,1,1,1
+C:\Users\user\Pictures\Camera Roll\focused_3.mp4,focused_3.mp4,253,0.9656723158161631,1,1,1
+C:\Users\user\Pictures\Camera Roll\focused_4.mp4,focused_4.mp4,137,0.9661908362903734,1,1,1
+C:\Users\user\Pictures\Camera Roll\unfocused_1.mp4,unfocused_1.mp4,302,0.2498434470682744,1,0,1
+C:\Users\user\Pictures\Camera Roll\unfocused_2.mp4,unfocused_2.mp4,379,0.2673677476540719,1,1,1
+C:\Users\user\Pictures\Camera Roll\unfocused_3.mp4,unfocused_3.mp4,301,0.7188401158366885,1,1,1
+C:\Users\user\Pictures\Camera Roll\unfocused_4.mp4,unfocused_4.mp4,327,0.6077428518108089,1,1,1

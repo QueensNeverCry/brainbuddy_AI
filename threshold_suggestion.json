@@ -1,0 +1,11 @@
+{
+  "suggested_threshold": 0.4999482960196664,
+  "approx_recall": 1.0,
+  "approx_precision": 1.0,
+  "auto_margins": {
+    "mid_quantile": 0.6,
+    "mid_thr": 0.00719389319419856,
+    "high_quantile": 0.9,
+    "high_thr": 0.00939344763755792
+  }
+}
