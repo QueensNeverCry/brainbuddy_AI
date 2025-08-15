@@ -2,14 +2,17 @@ import os
 import json
 import pickle
 
-label_base_dir = r"C:/Users/user/Downloads/109.학습태도 및 성향 관찰 데이터/3.개방데이터/1.데이터/Training/02.라벨링데이터/TL_20_02"
-train_base_dir = r"G:/내 드라이브/train/30_01"
-output_pickle_path = "pickle_labels/train/20_01.pkl"
+label_base_dir = os.path.normpath(
+    r"C:/Users/user/Downloads/109.학습태도 및 성향 관찰 데이터/3.개방데이터/1.데이터/Validation/02.라벨링데이터/VL_20_03"
+)
+train_base_dir = os.path.normpath(r"C:/AIhub_frames/valid")
+output_pickle_path = os.path.normpath("pickle_labels/valid/20_03.pkl")
+
 label_texts = set()
 label_map = {
     "집중": 1,
     "집중하지않음": 0,
-    "졸음":0
+    "졸음": 0
 }
 
 results = []
@@ -17,7 +20,7 @@ file_count = 0
 parsed_count = 0
 skipped_count = 0
 
-print(f"\n📁 라벨 폴더 확인: {label_base_dir}")
+print(f"\n라벨 폴더 확인: {label_base_dir}")
 if not os.path.exists(label_base_dir):
     print("❌ 경로가 존재하지 않음! 경로를 확인하세요.")
     exit()
@@ -27,14 +30,20 @@ for root, _, files in os.walk(label_base_dir):
     for file in files:
         if file.endswith(".json"):
             file_count += 1
-            json_path = os.path.join(root, file)
-            print(f"🔍 처리 중: {json_path}")  # 디버깅 출력
+            json_path = os.path.normpath(os.path.join(root, file))
+            print(f"처리 중: {json_path}")
 
             filename = os.path.splitext(file)[0]
             try:
                 *prefix_parts, num_folder = filename.split("-")
                 folder_name = "-".join(prefix_parts)
-                train_path = os.path.join(train_base_dir, folder_name, num_folder)
+                segment_path = os.path.normpath(os.path.join(train_base_dir, folder_name, f"segment_{num_folder}"))
+
+                # ✅ 폴더 존재 여부 확인
+                if not os.path.isdir(segment_path):
+                    print(f"🚫 segment 폴더 없음: {segment_path}")
+                    skipped_count += 1
+                    continue
 
                 with open(json_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
@@ -43,7 +52,7 @@ for root, _, files in os.walk(label_base_dir):
                 label = label_map[label_text]
                 label_texts.add(label_text)
 
-                results.append((train_path, label))
+                results.append((segment_path, label))
                 parsed_count += 1
 
             except KeyError:
@@ -59,16 +68,15 @@ os.makedirs(os.path.dirname(output_pickle_path), exist_ok=True)
 with open(output_pickle_path, 'wb') as f:
     pickle.dump(results, f)
 
-print("\n✅ 완료된 파일 수:", parsed_count)
-print("🚫 스킵된 파일 수:", skipped_count)
-print("📦 Pickle 저장 위치:", output_pickle_path)
+print("\n완료된 파일 수:", parsed_count)
+print("스킵된 파일 수:", skipped_count)
+print("Pickle 저장 위치:", output_pickle_path)
 
 # 예시 출력
 print("\n🎯 예시 출력 (최대 5개):")
 for item in results[:5]:
     print(item)
-
-print(f"\n🔢 총 {len(results)}개의 데이터가 저장되었습니다.")
-print("\n📋 등장한 라벨 문자열:")
+print(f"\n총 {len(results)}개의 데이터가 저장되었습니다.")
+print("\n 등장한 라벨 문자열:")
 for label in sorted(label_texts):
     print(f"  '{label}'")

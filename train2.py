@@ -31,12 +31,12 @@ def train():
     train_dataset = CNNFeatureDataset([
         "./cnn_features/features_30/train_20_01.pkl",
         "./cnn_features/features_30/train_20_03.pkl",
-        #"./cnn_features/features_30/D_train.pkl",
+        "./cnn_features/features_30/D_train.pkl",
     ])
     val_dataset = CNNFeatureDataset([
         "./cnn_features/features_30/valid_20_01.pkl",
         "./cnn_features/features_30/valid_20_03.pkl",
-        #"./cnn_features/features_30/D_val.pkl"
+        "./cnn_features/features_30/D_val.pkl"
     ])
     
     # DataLoader 설정
@@ -47,7 +47,6 @@ def train():
     criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters(), lr=1e-4, weight_decay=1e-5) # 과적합 방지용 : weight decay 추가
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=6)# 스케쥴러로 lr 조정
-    writer = SummaryWriter(log_dir='./runs/engagement_experiment')
 
     num_epochs = 20
     best_val_loss = float('inf') 
@@ -152,15 +151,15 @@ def train():
         # plt.ylabel("Count")
         # plt.show()
 
-        writer.add_scalar('Loss/train', avg_train_loss, epoch)
-        writer.add_scalar('Loss/validation', avg_val_loss, epoch)
+        # writer.add_scalar('Loss/train', avg_train_loss, epoch)
+        # writer.add_scalar('Loss/validation', avg_val_loss, epoch)
 
         scheduler.step(avg_val_loss)
 
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
             patience_counter = 0
-            torch.save(model.state_dict(), 'best_model.pth')
+            torch.save(model.state_dict(), 'best_model_2.pth')
         else:
             patience_counter += 1
             if patience_counter >= patience:

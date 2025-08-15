@@ -1,8 +1,8 @@
 import os
 import json
 
-#label_base_dir = r"C:/Users/user/Downloads/109.학습태도 및 성향 관찰 데이터/3.개방데이터/1.데이터/Training/02.라벨링데이터/TL_30_02"
-label_base_dir = r"../TL_20_01"
+label_base_dir = r"C:/Users/user/Downloads/109.학습태도 및 성향 관찰 데이터/3.개방데이터/1.데이터/Validation/02.라벨링데이터/VL_20_04"
+# label_base_dir = r"../TL_20_01"
 label_text_set = set()
 
 for root, _, files in os.walk(label_base_dir):
