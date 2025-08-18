@@ -47,7 +47,7 @@ project/ <br>
 <br>
 
 ## 0. 모델 구조
-<img src="https://github.com/user-attachments/assets/4aace760-7b52-4cb1-bda2-6202143f7e62" width="500" >
+<img src="https://github.com/user-attachments/assets/4aace760-7b52-4cb1-bda2-6202143f7e62" width="500" ><br>
 30프레임 시퀀스 -> CNN(MobileNetV3-Large) -> LSTM -> 집중여부(0/1)
 <br>
 
@@ -72,9 +72,19 @@ AIHub dataset : [학습태도 및 성향 관찰 데이터](https://www.aihub.or.
 <br>
  
 ## 3. 모델 테스트 및 성능
-AIhub test set 성능 : 
-자체 개발 test set 성능 : 
- <br>
+ 
+| test set |  Accuracy | Recall | F1 |
+| --- |--- | --- | --- | --- |
+| AIhub test set | 0.8088 | 0.8690 | 0.8149 |
+| 자체 개발 test set | 0.7470 | 0.7823 | 0.7239 |
+<br>
+
+최종 모델 평가를 위해 팀원들이 직접 웹캠으로 촬영한 5분 내외의 자체 개발 test set을 사용하였다.
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/021b345a-bb77-4302-904c-6ad640dd0620" width="200">
+  <img src="https://github.com/user-attachments/assets/e9d85ebd-b055-4dc7-96e5-2831d49a85b2" width="200">
+</p>
+
 
 
 ## 4. 직접 실행해보기
