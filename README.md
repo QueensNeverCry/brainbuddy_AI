@@ -47,13 +47,13 @@ project/ <br>
 <br>
 
 ## 0. 모델 구조
-![모델구조도색깔](https://github.com/user-attachments/assets/6411fedc-1a79-4009-8c4c-3bc1dabd035b)
+<img src="https://private-user-images.githubusercontent.com/127655800/478826222-cb4224d7-ce55-48b6-bade-26b545e3e211.jpg?jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NTU0ODEzNzAsIm5iZiI6MTc1NTQ4MTA3MCwicGF0aCI6Ii8xMjc2NTU4MDAvNDc4ODI2MjIyLWNiNDIyNGQ3LWNlNTUtNDhiNi1iYWRlLTI2YjU0NWUzZTIxMS5qcGc_WC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTYmWC1BbXotQ3JlZGVudGlhbD1BS0lBVkNPRFlMU0E1M1BRSzRaQSUyRjIwMjUwODE4JTJGdXMtZWFzdC0xJTJGczMlMkZhd3M0X3JlcXVlc3QmWC1BbXotRGF0ZT0yMDI1MDgxOFQwMTM3NTBaJlgtQW16LUV4cGlyZXM9MzAwJlgtQW16LVNpZ25hdHVyZT1jYTlhYmE0ZjA4MDljMTEzNDNlM2UyNGFjMWM4ZDlhN2QyZWI1N2U2ZTVjODFjNWI1ZmM5ZTA2MDllOWU4NDU1JlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCJ9.SzVjXjGBm1bULG11dd999y5GfN_42wZ_5MkKIDm0unk" width="500" >
 30프레임 시퀀스 -> CNN(MobileNetV3-Large) -> LSTM -> 집중여부(0/1)
- <br>
+<br>
+
 ## 1. 데이터 
 ### 사용 데이터셋
-AIHub 데이터셋 - "학습태도 및 성향 관찰 데이터"
-https://www.aihub.or.kr/aihubdata/data/view.do?currMenu=115&topMenu=100&aihubDataSe=realm&dataSetSn=71715
+AIHub dataset : [학습태도 및 성향 관찰 데이터](https://www.aihub.or.kr/aihubdata/data/view.do?currMenu=115&topMenu=100&aihubDataSe=realm&dataSetSn=71715)
  <br>
 ### 전처리 및 라벨링
 `python -m preprocess2.ext` mediapipe로 facecrop 후 10초에 30frame씩 추출
