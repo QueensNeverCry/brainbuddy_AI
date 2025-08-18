@@ -4,9 +4,8 @@ import pickle
 import cv2
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 from torchvision import transforms, models
-from torchvision.transforms import InterpolationMode
 from tqdm import tqdm
 from PIL import Image
 import pandas as pd
@@ -15,143 +14,12 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, recall_score, f1_score, accuracy_score
 import torch.nn.functional as F
 import torch.nn as nn
-
-class BCEWithLogitsLossSmooth(nn.Module):
-    """
-    Binary CE + label smoothing.
-    mode='01'  : 0 -> ε, 1 -> 1-ε   (가장 직관적)
-    mode='half': 0 -> ε/2, 1 -> 1-ε/2 (좀 더 온건)
-    """
-    def __init__(self, eps=0.1, mode='01', reduction='mean', weight=None, pos_weight=None):
-        super().__init__()
-        assert 0.0 <= eps < 0.5
-        self.eps = eps
-        self.mode = mode
-        self.reduction = reduction
-        self.register_buffer('weight', weight if weight is not None else None)
-        self.register_buffer('pos_weight', pos_weight if pos_weight is not None else None)
-
-    def forward(self, input, target):
-        if self.mode == '01':
-            # 0→ε, 1→1-ε
-            target = target * (1 - self.eps) + (1 - target) * self.eps
-        elif self.mode == 'half':
-            # 0→ε/2, 1→1-ε/2
-            target = target * (1 - self.eps) + 0.5 * self.eps
-        else:
-            raise ValueError("mode must be '01' or 'half'")
-        return F.binary_cross_entropy_with_logits(
-            input, target, weight=self.weight, pos_weight=self.pos_weight, reduction=self.reduction
-        )
-
-# ------------------ Dataset ------------------
-class VideoFolderDataset(Dataset):
-    def __init__(self, data_list, transform=None, num_frames=30):
-        self.num_frames = num_frames
-        self.transform = transform or transforms.Compose([
-            transforms.Resize((224, 224), interpolation=InterpolationMode.BILINEAR, antialias=True),
-            transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-        ])
-        self.samples = []  # (sorted_paths:list[str], label)
-        for folder_path, label in data_list:
-            if not os.path.isdir(folder_path): continue
-            files = [f for f in os.listdir(folder_path)
-                     if f.lower().endswith(('.jpg','.jpeg','.png'))]
-            if len(files) < self.num_frames: continue
-            files.sort()  # ← 여기서 확정
-            # 미리 절대경로로 바꿔두기 (join 비용도 제거)
-            paths = [os.path.join(folder_path, f) for f in files[:self.num_frames]]
-            self.samples.append((paths, label))
-
-        # OpenCV 내부 스레드 비활성(멀티워커와 충돌/과다 스레딩 방지)
-        import cv2; cv2.setNumThreads(0)
-
-        # Normalize 파라미터 캐시
-        self.mean = torch.tensor([0.485, 0.456, 0.406]).view(1,3,1,1)
-        self.std  = torch.tensor([0.229, 0.224, 0.225]).view(1,3,1,1)
-
-    def __len__(self): return len(self.samples)
-
-    def _load_frame(self, p):
-        img = cv2.imread(p, cv2.IMREAD_COLOR)
-        if img is None: return None
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        if self.transform:
-            img = Image.fromarray(img)
-            img = self.transform(img)  # Tensor (3,H,W) 가정
-            return img
-        else:
-            img = torch.from_numpy(img).permute(2,0,1).float()/255.0
-            return img
-
-    def __getitem__(self, idx):
-        paths, label = self.samples[idx]
-        frames = []
-        last_ok = None
-        for p in paths:
-            t = self._load_frame(p)
-            if t is None:
-                t = last_ok if last_ok is not None else torch.zeros(3,224,224)
-            else:
-                last_ok = t
-            frames.append(t)
-
-        video = torch.stack(frames, dim=0)  # (T,3,H,W)
-        return video, torch.tensor(label, dtype=torch.float32)
-
-
-# ------------------ Model ------------------
-
-class CNNEncoder(nn.Module):
-    def __init__(self, output_dim=512, dropout2d=0.1, proj_dropout=0.4):
-        super().__init__()
-        w = models.MobileNet_V3_Large_Weights.DEFAULT
-        backbone = models.mobilenet_v3_large(weights=w)
-
-        self.features = backbone.features                # (B*T, 960, h, w)
-        # MobileNetV3-Large 분류기 첫 Linear의 in_features = 960
-        self.feat_channels = backbone.classifier[0].in_features  # 960
-
-        self.avgpool = nn.AdaptiveAvgPool2d((2, 2))      # (B*T, 960, 2, 2)
-        self.drop2d  = nn.Dropout2d(dropout2d)
-
-        # 저랭크 보틀넥: 3840 -> 256 -> 512
-        flat_dim = self.feat_channels * 2 * 2            # 960*4 = 3840
-        self.fc = nn.Sequential(
-            nn.Linear(flat_dim, 256), nn.GELU(), nn.Dropout(proj_dropout),
-            nn.Linear(256, output_dim), nn.GELU()
-        )
-
-    def forward(self, x):  # x: (B, T, 3, H, W)
-        B, T, C, H, W = x.shape
-        x = x.view(B*T, C, H, W)
-        x = self.features(x)                 # (B*T, 960, h, w)
-        x = self.avgpool(x)                  # (B*T, 960, 2, 2)
-        x = self.drop2d(x)
-        x = x.view(B*T, -1)                  # (B*T, 3840)
-        x = self.fc(x)                       # (B*T, 512)
-        return x.view(B, T, -1)              # (B, T, 512)
-
-class EngagementModelNoFusion(nn.Module):
-    def __init__(self, cnn_feat_dim=512, hidden_dim=128):
-        super().__init__()
-        self.lstm = nn.LSTM(input_size=cnn_feat_dim, hidden_size=hidden_dim, batch_first=True)
-        self.fc = nn.Sequential(
-            nn.Linear(hidden_dim, 64),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(64, 1)  # logit
-        )
-
-    def forward(self, cnn_feats):
-        # cnn_feats: (B, T, D)
-        _, (hn, _) = self.lstm(cnn_feats)   # hn: (1, B, H)
-        x = hn.squeeze(0)                   # (B, H)
-        return self.fc(x)                   # (B, 1)
+from models.engagement_model import EngagementModel
+from models.cnn_encoder import CNNEncoder
+from datasets.video_folder_dataset import VideoFolderDataset
 
 # ------------------ Training ------------------
-def train(model_cnn, model_top, loader, criterion, optimizer, device, accumulation_steps=4):
+def train(model_cnn, model_top, loader, criterion, optimizer, device, accumulation_steps=32):
     model_cnn.train()
     model_top.train()
     total_loss = 0.0
@@ -216,11 +84,11 @@ def evaluate_and_save_confusion_matrix(model_cnn, model_top, loader, device, epo
             all_labels.extend(labels.flatten())
 
     cm = confusion_matrix(all_labels, all_preds)
-    os.makedirs("./log/train6/confusion_matrix", exist_ok=True)
+    os.makedirs("./log/train7/confusion_matrix", exist_ok=True)
     disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=[0, 1])
     disp.plot(cmap=plt.cm.Blues)
     plt.title(f"Confusion Matrix - Epoch {epoch+1}")
-    plt.savefig(f"./log/train6/confusion_matrix/conf_matrix_epoch_{epoch+1}.png")
+    plt.savefig(f"./log/train7/confusion_matrix/conf_matrix_epoch_{epoch+1}.png")
     plt.close()
     print(f"📊 Confusion matrix saved: conf_matrix_epoch_{epoch+1}.png")
 
@@ -330,13 +198,14 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     start_epoch = 0
-    patience = 3
+    patience = 4
     patience_counter = 0
-    num_epochs = 12
+    num_epochs = 15
 
     train_pkl_files = [
         "C:/KSEB/brainbuddy_AI/preprocess2/pickle_labels/train/20_01.pkl",
         "C:/KSEB/brainbuddy_AI/preprocess2/pickle_labels/train/20_03.pkl"
+
     ]
     val_pkl_files = [
         "C:/KSEB/brainbuddy_AI/preprocess2/pickle_labels/valid/20_01.pkl",
@@ -353,9 +222,9 @@ def main():
     val_loader = DataLoader(val_dataset, batch_size=4, shuffle=False, num_workers=12, pin_memory=True, prefetch_factor=4)
 
     cnn = CNNEncoder().to(device)
-    model = EngagementModelNoFusion().to(device)
-    criterion = BCEWithLogitsLossSmooth(eps=0.1, mode='01')
-    #criterion = nn.BCEWithLogitsLoss()
+    model = EngagementModel().to(device)
+    #criterion = BCEWithLogitsLossSmooth(eps=0.1, mode='01')
+    criterion = nn.BCEWithLogitsLoss()
     #optimizer = torch.optim.Adam(list(cnn.parameters()) + list(model.parameters()), lr=1e-4)
     optimizer = torch.optim.AdamW(
     list(cnn.parameters()) + list(model.parameters()),
@@ -371,12 +240,12 @@ def main():
 
     best_val_loss = float('inf')
     best_model_path = None
-    best_model_dir = "./log/train6/best_model"
+    best_model_dir = "./log/train7/best_model"
     os.makedirs(best_model_dir, exist_ok=True)
-    os.makedirs("./log/train6", exist_ok=True)
+    os.makedirs("./log/train7", exist_ok=True)
 
-    checkpoint_path = "./log/train6/last_checkpoint.pt"
-    log_csv_path = "./log/train6/train_log4.csv"
+    checkpoint_path = "./log/train7/last_checkpoint.pt"
+    log_csv_path = "./log/train7/train_log7.csv"
 
 
     # --- 체크포인트 불러오기 ---
@@ -406,13 +275,6 @@ def main():
         print(f"   ↳ Best-RECALL(F2) thr={thr_rec:.3f} | acc={rec_pack['acc']:.4f}, rec={rec_pack['rec']:.4f}, "
             f"prec={rec_pack['prec']:.4f}, f1={rec_pack['f1']:.4f}, f2={rec_pack['f2']:.4f}")
 
-        # log_history.append({
-        #     "epoch": epoch + 1,
-        #     "train_loss": train_loss,
-        #     "val_loss": val_loss,
-        #     "recall": recall,
-        #     "f1_score": f1
-        # })
         row = {
             "epoch": epoch + 1,
             "train_loss": train_loss,
@@ -475,12 +337,6 @@ def main():
             'thr_rec': float(thr_rec),
         }, checkpoint_path)
         print(f"💾 Checkpoint saved at epoch {epoch+1}")
-
-    # # --- 학습 로그 저장 ---
-    # log_df = pd.DataFrame(log_history)
-    # os.makedirs("./log/train5", exist_ok=True)
-    # log_df.to_csv("./log/train5/train_log4.csv", index=False)
-    # print("📄 Training log saved to ./log/train5/train_log4.csv")
 
     # --- Best 모델 불러오기 ---
     if best_model_path:

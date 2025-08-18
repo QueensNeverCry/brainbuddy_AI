@@ -11,7 +11,8 @@ from torchvision.transforms import InterpolationMode
 from PIL import Image
 import mediapipe as mp
 from models.face_crop import crop_face, last_face_bbox
-
+from models.engagement_model import EngagementModel
+from models.cnn_encoder import CNNEncoder
 # ===== 사용자 편집 지점 =====
 CKPT_PATH = "./log/train4/best_model/best_model_epoch_4.pt"  # <-- 실제 경로로 변경
 CAM_INDEX = 0                                       # 기본 웹캠
@@ -29,51 +30,6 @@ preprocess = transforms.Compose([
     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
 ])
 
-# -------- 모델 (학습과 동일) --------
-class CNNEncoder(nn.Module):
-    def __init__(self, output_dim=512, dropout2d=0.1, proj_dropout=0.4):
-        super().__init__()
-        w = models.MobileNet_V3_Large_Weights.DEFAULT
-        backbone = models.mobilenet_v3_large(weights=w)
-
-        self.features = backbone.features
-        self.feat_channels = backbone.classifier[0].in_features  # 960
-
-        self.avgpool = nn.AdaptiveAvgPool2d((2, 2))
-        self.drop2d  = nn.Dropout2d(dropout2d)
-
-        flat_dim = self.feat_channels * 2 * 2  # 960*4 = 3840
-        self.fc = nn.Sequential(
-            nn.Linear(flat_dim, 256), nn.GELU(), nn.Dropout(proj_dropout),
-            nn.Linear(256, output_dim), nn.GELU()
-        )
-
-    def forward(self, x):  # x: (B, T, 3, H, W)
-        B, T, C, H, W = x.shape
-        x = x.view(B*T, C, H, W)
-        x = self.features(x)
-        x = self.avgpool(x)
-        x = self.drop2d(x)
-        x = x.view(B*T, -1)
-        x = self.fc(x)
-        return x.view(B, T, -1)  # (B, T, 512)
-
-class EngagementModelNoFusion(nn.Module):
-    def __init__(self, cnn_feat_dim=512, hidden_dim=128):
-        super().__init__()
-        self.lstm = nn.LSTM(input_size=cnn_feat_dim, hidden_size=hidden_dim, batch_first=True)
-        self.fc = nn.Sequential(
-            nn.Linear(hidden_dim, 64),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(64, 1)  # logit
-        )
-
-    def forward(self, cnn_feats):
-        _, (hn, _) = self.lstm(cnn_feats)  # hn: (1, B, H)
-        x = hn.squeeze(0)                  # (B, H)
-        return self.fc(x)                  # (B, 1)
-
 # -------- 체크포인트 로드 --------
 def load_checkpoint_and_models(ckpt_path: str):
     if not Path(ckpt_path).exists():
@@ -84,7 +40,7 @@ def load_checkpoint_and_models(ckpt_path: str):
     thr_rec = ckpt.get("thr_rec", None)
 
     cnn = CNNEncoder().to(DEVICE)
-    model = EngagementModelNoFusion().to(DEVICE)
+    model = EngagementModel().to(DEVICE)
     cnn.load_state_dict(ckpt["cnn_state_dict"])
     model.load_state_dict(ckpt["model_state_dict"])
     cnn.eval(); model.eval()
