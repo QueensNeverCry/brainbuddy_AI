@@ -74,7 +74,7 @@ AIHub dataset : [학습태도 및 성향 관찰 데이터](https://www.aihub.or.
 ## 3. 모델 테스트 및 성능
  
 | test set |  Accuracy | Recall | F1 |
-| --- |--- | --- | --- | --- |
+| --- |--- | --- | --- |
 | AIhub test set | 0.8088 | 0.8690 | 0.8149 |
 | 자체 개발 test set | 0.7470 | 0.7823 | 0.7239 |
 <br>
