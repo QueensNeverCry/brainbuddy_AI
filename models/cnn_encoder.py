@@ -28,4 +28,6 @@ class CNNEncoder(nn.Module):
         features = self.avgpool(features)    # feature map 을 avg pooling하여 1x1로 축소 -> (B*T, 1280, 1, 1)
 
         features = features.view(B, T, -1)   # (B, T, 1280) : 다시 시간 순서로 복원
+
         return features
+

@@ -67,6 +67,7 @@ venv/
 myenv/
 
 # ▶ Others (optional)
+*.pkl
 *.bak
 *.swp
 *.~lock.*
