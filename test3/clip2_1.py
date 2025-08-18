@@ -1,4 +1,56 @@
 # clip2_1.py
+# ============================================================
+# 📌 Pipeline Overview (Flowchart Style)
+#
+#            labels_final.csv
+#                   │
+#                   ▼
+#        ┌──────────────────────────┐
+#        │ 1) Load & Sanity Check   │  <-- CSV 로드, 결측/경로 확인
+#        └─────────────┬────────────┘
+#                      │
+#                      ▼
+#        ┌──────────────────────────┐
+#        │ 2) Group Key Extraction  │  <-- --group-preset / --group-mode / --group-regex
+#        └─────────────┬────────────┘
+#                      │ groups, y
+#                      ▼
+#        ┌──────────────────────────┐
+#        │ 3) Group-Stratified Split│  <-- 누수 방지 + 각 split 클래스 보존
+#        └─────────────┬────────────┘
+#       train/val/test indices      │   (--strict-groups 실패 시 에러, --no-strict-groups면 폴백)
+#                      ▼            │
+#        ┌──────────────────────────┐
+#        │ 4) Datasets & Dataloaders│  <-- seq_len, pad_strategy, transforms
+#        └─────────────┬────────────┘
+#                      │
+#                      ▼
+#        ┌──────────────────────────┐
+#        │ 5) Model: CNN + LSTM     │  <-- resnet18/efficientnet_b0 + LSTM + head
+#        └─────────────┬────────────┘
+#                      │
+#        ┌──────────────────────────┐
+#        │ 6) Train (AMP optional)  │  <-- BCEWithLogits, Adam, early stopping by --monitor
+#        └─────────────┬────────────┘
+#                      │ best.ckpt
+#                      ▼
+#        ┌──────────────────────────┐
+#        │ 7) Evaluate on Test      │  <-- Acc/Recall/F1/AUC, Report
+#        └─────────────┬────────────┘
+#                      │
+#                      ▼
+#        ┌──────────────────────────┐
+#        │ 8) Save Artifacts        │  <-- confusion_matrix.png, roc_curve.png,
+#        │                          │      metrics_log.csv, splits_indices.json
+#        └──────────────────────────┘
+#
+# Key CLI flags:
+# - Grouping: --group-preset / --group-mode / --group-regex / --group-depth
+# - Safety:   --strict-groups / --no-strict-groups / --dry-run-split
+# - Data:     --seq-len / --pad-strategy / --min-frames / --img-size
+# - Train:    --monitor / --patience / --epochs / --lr / --batch-size / --workers
+# ============================================================
+
 # ------------------------------------------------------------
 # CLIP 라벨 기반 CNN+LSTM 학습 (그룹 키 강화)
 # - GPU/AMP(torch.amp), tqdm
@@ -33,13 +85,15 @@ from tqdm import tqdm
 
 
 # =========================
-# Utils
+# Utils (기본 유틸 함수)
 # =========================
 def set_seed(seed: int = 42):
+    """랜덤 시드 고정 (재현성 보장)"""
     random.seed(seed); np.random.seed(seed)
     torch.manual_seed(seed); torch.cuda.manual_seed_all(seed)
 
 def exists(p: str) -> bool:
+    """경로 존재 여부 체크"""
     try: return Path(p).exists()
     except: return False
 
@@ -47,21 +101,18 @@ def exists(p: str) -> bool:
 # =========================
 # 그룹 키 추출
 # =========================
+# 경로명에서 "사람 ID / 세션" 등을 그룹 키로 추출하기 위한 프리셋 정규식
 PRESETS = {
-    # 경로 예: ...\134_face_crop\NIA22EYE_S1_134_T1_S04_T_rgb_D_T_R
-    # 1) 사람 ID만 (세 자리)
-    "auto_person": r"NIA22EYE_S\d+_(\d{3})_",
-    # 2) 사람+세션(조금 더 세분화: S1_134)
-    "auto_person_session": r"NIA22EYE_(S\d+_\d{3})_T\d+",
-    # 3) 상위 폴더에서 3자리 ID 추출: .../134_face_crop/...
-    "auto_dirid": r"/(\d{3})_face_crop/",
+    "auto_person": r"NIA22EYE_S\d+_(\d{3})_",             # 사람 ID만 추출
+    "auto_person_session": r"NIA22EYE_(S\d+_\d{3})_T\d+", # 사람+세션
+    "auto_dirid": r"/(\d{3})_face_crop/",                 # 상위 폴더 ID
 }
 
 def extract_group_from_path(folder: str, group_mode: str, depth: int, regex: str, group_preset: str):
     """
-    group_mode: pair_up | two_up | depth | regex
-    group_preset: auto_person | auto_person_session | auto_dirid | none
-    우선순위: group_preset(있으면) → group_mode
+    그룹 키 추출 함수
+    - group_preset이 있으면 우선 적용
+    - 없으면 group_mode(pair_up/two_up/depth/regex)에 따라 적용
     """
     s = folder.replace("\\", "/")
     if group_preset and group_preset != "none":
@@ -83,7 +134,7 @@ def extract_group_from_path(folder: str, group_mode: str, depth: int, regex: str
         cut = max(1, cut)
         return "/".join(parts[max(0, cut-1):cut])
 
-    # default: 'pair_up'
+    # 기본값: pair_up (상위 2단계 폴더 사용)
     if len(parts) >= 4: return f"{parts[-4]}/{parts[-3]}"
     if len(parts) >= 3: return f"{parts[-3]}/{parts[-2]}"
     return parts[-1]
@@ -93,10 +144,12 @@ def extract_group_from_path(folder: str, group_mode: str, depth: int, regex: str
 # 그룹 분할 (클래스 보존 시도)
 # =========================
 def _split_counts(y_idx):
+    """라벨 분포 통계 출력용"""
     y_sum = int(y_idx.sum())
     return {"n": len(y_idx), "pos": y_sum, "neg": len(y_idx)-y_sum}
 
 def _fallback_sample_stratified(y, seed):
+    """그룹 분할 실패 시 샘플 단위 stratified split로 폴백"""
     sss1 = StratifiedShuffleSplit(n_splits=1, test_size=0.3, random_state=seed)
     idx = np.arange(len(y))
     train_idx, temp_idx = next(sss1.split(idx, y))
@@ -107,10 +160,12 @@ def _fallback_sample_stratified(y, seed):
     val_idx = temp_idx[val_rel]; test_idx = temp_idx[test_rel]
     return train_idx, val_idx, test_idx
 
-def group_stratified_split_indices(groups, y, train_ratio=0.7, val_ratio=0.15, test_ratio=0.15, seed=42, max_trials=3000, allow_fallback=False):
+def group_stratified_split_indices(groups, y, train_ratio=0.7, val_ratio=0.15, test_ratio=0.15,
+                                   seed=42, max_trials=3000, allow_fallback=False):
     """
-    그룹 누수 방지 + 각 split에 0/1 클래스 모두 존재하도록 시도.
-    실패 시 allow_fallback=True일 때만 샘플 단위 Stratified 분할 폴백.
+    그룹 단위 stratified split
+    - 그룹 누수 방지 (같은 그룹 train/val/test에 동시에 존재하지 않음)
+    - 각 split에 0/1 클래스 모두 존재하도록 조건 탐색
     """
     rng = np.random.RandomState(seed)
     groups = np.asarray(groups); y = np.asarray(y)
@@ -119,8 +174,9 @@ def group_stratified_split_indices(groups, y, train_ratio=0.7, val_ratio=0.15, t
     if nG <= 2:
         if allow_fallback:
             return _fallback_sample_stratified(y, seed)
-        raise RuntimeError(f"[SplitError] Too few groups (n_groups={nG}). Refine group key or enable --no-strict-groups.")
+        raise RuntimeError(f"[SplitError] Too few groups (n_groups={nG}).")
 
+    # 그룹 수 비율에 따라 train/val/test 그룹 수 결정
     n_train = max(1, int(round(train_ratio * nG)))
     n_val   = max(1, int(round(val_ratio   * nG)))
     if n_train + n_val >= nG:
@@ -130,6 +186,7 @@ def group_stratified_split_indices(groups, y, train_ratio=0.7, val_ratio=0.15, t
 
     idx_all = np.arange(len(groups))
 
+    # 조건 만족할 때까지 max_trials 반복
     for _ in range(max_trials):
         rng.shuffle(uniq)
         train_groups = set(uniq[:n_train])
@@ -148,18 +205,19 @@ def group_stratified_split_indices(groups, y, train_ratio=0.7, val_ratio=0.15, t
         if all(cond):
             return tr_idx, va_idx, te_idx
 
+    # 실패 시 폴백 여부 확인
     if allow_fallback:
         print("[Warn] Could not build group stratified splits; falling back to sample-level stratified split.")
         return _fallback_sample_stratified(y, seed)
     else:
-        raise RuntimeError("[SplitError] Could not satisfy group+class constraints. "
-                           "Try a different --group-preset/--group-regex or use --no-strict-groups.")
+        raise RuntimeError("[SplitError] Could not satisfy group+class constraints.")
 
 
 # =========================
-# 시각화
+# 시각화 함수
 # =========================
 def save_confmat(figpath, y_true, y_pred, labels=(0,1)):
+    """Confusion Matrix 그림 저장"""
     cm = confusion_matrix(y_true, y_pred, labels=labels)
     fig, ax = plt.subplots(figsize=(4,4), dpi=140)
     im = ax.imshow(cm, interpolation='nearest')
@@ -175,6 +233,7 @@ def save_confmat(figpath, y_true, y_pred, labels=(0,1)):
     fig.tight_layout(); fig.savefig(figpath); plt.close(fig)
 
 def save_roc(figpath, y_true, y_prob):
+    """ROC Curve 그림 저장"""
     try: auc = roc_auc_score(y_true, y_prob)
     except Exception: auc = None
     fpr, tpr, _ = roc_curve(y_true, y_prob)
@@ -187,9 +246,14 @@ def save_roc(figpath, y_true, y_prob):
 
 
 # =========================
-# Dataset (with padding)
+# Dataset (프레임 부족시 자동 패딩 포함)
 # =========================
 class SequenceDataset(Dataset):
+    """
+    폴더 단위 시퀀스 데이터셋
+    - min_frames 미만이면 제외
+    - seq_len 부족 시 pad_strategy(repeat_last/loop/blank 등)로 채움
+    """
     def __init__(self, df, transform, seq_len=30, pad_strategy="repeat_last", min_frames=1):
         self.df = df.reset_index(drop=True)
         self.transform = transform
@@ -197,6 +261,7 @@ class SequenceDataset(Dataset):
         self.pad_strategy = pad_strategy
         self.min_frames = min_frames
 
+        # min_frames 미만 시퀀스 필터링
         keep_idx = []
         skipped = 0
         for i in range(len(self.df)):
@@ -222,6 +287,7 @@ class SequenceDataset(Dataset):
         files = sorted([f for f in os.listdir(folder) if f.lower().endswith((".png",".jpg",".jpeg"))])
         n = len(files)
 
+        # 프레임 부족시 pad_strategy에 따라 채움
         if self.pad_strategy == "skip" and n < self.seq_len:
             raise RuntimeError(f"Insufficient frames with pad_strategy=skip: {folder} ({n}/{self.seq_len})")
         if n == 0:
@@ -243,6 +309,7 @@ class SequenceDataset(Dataset):
                 files = files + [files[-1]] * deficit
             self._pad_count += 1
 
+        # 이미지 로드 및 변환
         frames = []
         for fn in files[:self.seq_len]:
             if fn is None and self.pad_strategy == "blank":
@@ -265,9 +332,10 @@ class SequenceDataset(Dataset):
 
 
 # =========================
-# Model
+# Model 정의 (CNN + LSTM)
 # =========================
 class CNNEncoder(nn.Module):
+    """프레임 단위 CNN feature extractor (ResNet18 or EfficientNet)"""
     def __init__(self, backbone="resnet18"):
         super().__init__()
         self.out_dim = 512
@@ -287,6 +355,7 @@ class CNNEncoder(nn.Module):
         return f.view(f.size(0), -1)
 
 class CNN_LSTM(nn.Module):
+    """CNN feature + LSTM sequence model"""
     def __init__(self, backbone="resnet18", hidden=256, num_layers=2, bidirectional=True, dropout=0.3):
         super().__init__()
         self.cnn = CNNEncoder(backbone=backbone)
@@ -310,7 +379,7 @@ class CNN_LSTM(nn.Module):
         x = x.reshape(B*T, C, H, W)
         feats = self.cnn(x).view(B, T, -1)
         seq, _ = self.lstm(feats)
-        pooled = seq.mean(dim=1)
+        pooled = seq.mean(dim=1)        # 평균 pooling
         return self.head(pooled).squeeze(1)
 
 
@@ -318,11 +387,13 @@ class CNN_LSTM(nn.Module):
 # AMP & Device helpers
 # =========================
 class DummyScaler:
+    """CPU fallback용 scaler (no-op)"""
     def scale(self, x): return x
     def step(self, opt): opt.step()
     def update(self): pass
 
 def select_device(arg_device: str):
+    """사용 디바이스 선택"""
     if arg_device == "cuda":
         if not torch.cuda.is_available():
             raise RuntimeError("CUDA requested but not available.")
@@ -331,12 +402,14 @@ def select_device(arg_device: str):
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def get_autocast_and_scaler(device):
+    """AMP/GradScaler 반환"""
     if device.type == "cuda":
         return (lambda: torch.amp.autocast('cuda')), torch.amp.GradScaler('cuda')
     else:
         return (lambda: nullcontext()), DummyScaler()
 
 def print_device_info(device):
+    """GPU/CPU 환경 출력"""
     print("\n===== Device Info =====")
     print(f"Using device: {device}")
     if device.type == "cuda":
@@ -359,6 +432,7 @@ def print_device_info(device):
 # Train / Eval
 # =========================
 def train_one_epoch(model, dl, optimizer, scaler, criterion, device, autocast_ctx):
+    """한 epoch 학습 루프"""
     model.train()
     total = 0; running = 0.0
     pbar = tqdm(dl, desc="Train", ncols=100)
@@ -380,6 +454,7 @@ def train_one_epoch(model, dl, optimizer, scaler, criterion, device, autocast_ct
 
 @torch.no_grad()
 def evaluate(model, dl, device, autocast_ctx, title="Val"):
+    """검증/테스트 루프 (성능 지표 계산)"""
     model.eval()
     probs, ytrue, folders = [], [], []
     pbar = tqdm(dl, desc=title, ncols=100)
@@ -401,11 +476,13 @@ def evaluate(model, dl, device, autocast_ctx, title="Val"):
     except Exception:
         auc = float("nan")
     report = classification_report(ytrue, ypred, digits=4, zero_division=0)
-    return {"acc":acc, "recall":rec, "f1":f1, "auc":auc, "report":report, "y_true":ytrue, "y_prob":probs, "y_pred":ypred, "folders":folders}
+    return {"acc":acc, "recall":rec, "f1":f1, "auc":auc,
+            "report":report, "y_true":ytrue, "y_prob":probs,
+            "y_pred":ypred, "folders":folders}
 
 
 # =========================
-# Main
+# Main (훈련 파이프라인)
 # =========================
 def main(args):
     set_seed(args.seed)
@@ -417,12 +494,13 @@ def main(args):
     df = pd.read_csv(args.csv)
     assert {"folder","predicted_label"}.issubset(df.columns), "CSV must have columns: folder, predicted_label"
 
+    # 존재하지 않는 폴더 제거
     ok = df["folder"].apply(exists)
     if ok.sum() < len(df):
         df = df.loc[ok].reset_index(drop=True)
         print(f"[Warn] filtered non-existent folders. remain={len(df)}")
 
-    # 2) 그룹/라벨
+    # 2) 그룹 키 추출 + 라벨 준비
     groups = np.array([
         extract_group_from_path(
             str(p), args.group_mode, args.group_depth, args.group_regex, args.group_preset
@@ -430,7 +508,7 @@ def main(args):
     ])
     y = df["predicted_label"].astype(int).to_numpy()
 
-    # 3) 그룹-클래스 보존 분할 (폴백은 --no-strict-groups 일 때만)
+    # 3) 그룹 기반 stratified split
     try:
         tr_idx, va_idx, te_idx = group_stratified_split_indices(
             groups, y,
@@ -442,14 +520,14 @@ def main(args):
         print(str(e))
         sys.exit(2)
 
-    # 통계 출력
+    # split 통계 출력
     def stat(name, indices):
         ys = y[indices]
         return f"{name}: n={len(indices)}, pos={int(ys.sum())}, neg={int(len(ys)-ys.sum())}, groups={len(set(groups[indices]))}"
     print("[Split] ", stat("train", tr_idx), "|", stat("val", va_idx), "|", stat("test", te_idx))
 
+    # dry-run 옵션 시 split만 저장하고 종료
     if args.dry_run_split:
-        # 스플릿만 점검하고 종료
         split_meta = {
             "args": vars(args),
             "train_indices": list(map(int, tr_idx)),
@@ -466,7 +544,7 @@ def main(args):
         print(f"[Saved] {args.out_splitmeta} (dry run).")
         return
 
-    # 4) 변환
+    # 4) 이미지 변환 정의 (train vs eval)
     train_tfms = transforms.Compose([
         transforms.Resize(args.img_size+32),
         transforms.CenterCrop(args.img_size),
@@ -482,7 +560,7 @@ def main(args):
         transforms.Normalize([0.485,0.456,0.406],[0.229,0.224,0.225]),
     ])
 
-    # 5) 데이터셋/로더
+    # 5) 데이터셋/로더 생성
     train_df = df.iloc[tr_idx].reset_index(drop=True)
     val_df   = df.iloc[va_idx].reset_index(drop=True)
     test_df  = df.iloc[te_idx].reset_index(drop=True)
@@ -510,14 +588,14 @@ def main(args):
 
     print(f"[Pad] train padded: {train_ds.pad_count} | val padded: {val_ds.pad_count} | test padded: {test_ds.pad_count}")
 
-    # 6) 모델/손실/옵티마
+    # 6) 모델/손실/옵티마 정의
     model = CNN_LSTM(backbone=args.backbone, hidden=args.hidden,
                      num_layers=args.num_layers, bidirectional=not args.unidirectional,
                      dropout=args.dropout).to(device)
     criterion = nn.BCEWithLogitsLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 
-    # 7) 학습 루프
+    # 7) 학습 루프 (early stopping 포함)
     best_score = -np.inf; best_state = None; wait=0; log_rows=[]
     for epoch in range(1, args.epochs+1):
         t0=time.time()
@@ -535,6 +613,7 @@ def main(args):
                          "val_recall":val_res['recall'],"val_f1":val_res['f1'],
                          "val_auc":val_res['auc'],"epoch_time_sec":dt})
 
+        # best 갱신 시 체크포인트 저장
         if monitor>best_score:
             best_score=monitor; wait=0
             best_state={"epoch":epoch,"model":model.state_dict(),"optimizer":optimizer.state_dict(),
@@ -557,7 +636,7 @@ def main(args):
     print(f"Acc {test_res['acc']:.4f} | Recall {test_res['recall']:.4f} | F1 {test_res['f1']:.4f} | AUC {test_res['auc']:.4f}")
     print(test_res["report"])
 
-    # 9) 그림/메타 저장
+    # 9) 혼동행렬/ROC 저장 + split 메타 저장
     save_confmat(args.out_confmat, test_res["y_true"], test_res["y_pred"])
     auc = save_roc(args.out_roc, test_res["y_true"], test_res["y_prob"])
     print(f"[Saved] {args.out_confmat}, {args.out_roc} (AUC={auc})")
@@ -579,7 +658,7 @@ def main(args):
 
 
 # =========================
-# argparse
+# argparse (CLI 인자 정의)
 # =========================
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -618,14 +697,14 @@ if __name__ == "__main__":
     parser.add_argument("--pad-strategy", type=str, default="repeat_last", choices=["repeat_last","loop","blank","skip"])
     parser.add_argument("--min-frames", type=int, default=1)
 
-    # 출력
+    # 출력 파일들
     parser.add_argument("--out-ckpt", type=str, default="the_best.pth")
     parser.add_argument("--out-log", type=str, default="metrics_log.csv")
     parser.add_argument("--out-confmat", type=str, default="confusion_matrix.png")
     parser.add_argument("--out-roc", type=str, default="roc_curve.png")
     parser.add_argument("--out-splitmeta", type=str, default="splits_indices.json")
 
-    # 훈련 전 점검만
+    # 훈련 전 점검만 수행하는 옵션
     parser.add_argument("--dry-run-split", action="store_true", help="스플릿만 계산하고 저장 후 종료")
 
     args = parser.parse_args()
