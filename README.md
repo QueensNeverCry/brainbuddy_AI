@@ -86,13 +86,12 @@ AIHub dataset : [학습태도 및 성향 관찰 데이터](https://www.aihub.or.
   <img src="https://github.com/user-attachments/assets/e21fd614-98ae-430b-bffc-8d64eddc1d8f" width="49%">
 </p>
 
+<br>
 
-
-## 4. 직접 실행해보기
+## 4. 직접 로컬에서 실행해보기
 1. "best_model.pt"를 다운로드
 2. `real_time.py`의 CKPT_PATH에 해당 .pt 경로 지정
-3. `python real_time.py` 
-를 통해 로컬에서 실시간으로 테스트 해볼 수 있습니다.
+3. `python real_time.py`
  <br>
 
 
