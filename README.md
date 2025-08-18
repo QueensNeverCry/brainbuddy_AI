@@ -67,7 +67,7 @@ AIHub dataset : [학습태도 및 성향 관찰 데이터](https://www.aihub.or.
 - Early Stopping patience: 4
 - Batch size = 8
 - Optimizer: AdamW
-- Loss Function: BCEWithLogitsLoss + lr scheduler
+- Loss Function: BCEWithLogitsLoss + CosineAnnealingLR
 - Gradient Accumulation = 32 step
 <br>
  
