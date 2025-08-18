@@ -52,7 +52,7 @@ def crop_face(img_bgr, face_detector, fallback_to_full=True):
     h, w, _ = img_bgr.shape
 
     # ⏱️ 1. Resize for faster face detection
-    scale = 0.25
+    scale = 0.75
     resized = cv2.resize(img_bgr, (int(w * scale), int(h * scale)))
     resized_rgb = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
     rh, rw, _ = resized_rgb.shape
@@ -88,5 +88,7 @@ def crop_face(img_bgr, face_detector, fallback_to_full=True):
 
     # 🤷 아무것도 없으면 전체 이미지 또는 None
     return cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB) if fallback_to_full else None
+
+
 
 
