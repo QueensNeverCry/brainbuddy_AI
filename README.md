@@ -82,8 +82,8 @@ AIHub dataset : [학습태도 및 성향 관찰 데이터](https://www.aihub.or.
 
 최종 모델 평가를 위해 팀원들이 직접 웹캠으로 촬영한 5분 내외의 자체 개발 test set을 사용하였다.
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/021b345a-bb77-4302-904c-6ad640dd0620" width="200">
-  <img src="https://github.com/user-attachments/assets/e9d85ebd-b055-4dc7-96e5-2831d49a85b2" width="200">
+  <img src="https://github.com/user-attachments/assets/f10c8132-fd12-48e8-a942-6c880c4e3ae9" width="49%">
+  <img src="https://github.com/user-attachments/assets/e21fd614-98ae-430b-bffc-8d64eddc1d8f" width="49%">
 </p>
 
 
