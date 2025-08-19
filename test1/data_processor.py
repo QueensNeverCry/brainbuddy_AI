@@ -107,7 +107,7 @@ class DataProcessor:
         # CSV 저장
         csv_path = self.output_dir / "json_features_3class_dataset.csv"
         df.to_csv(csv_path, index=False)
-        print(f"✅ CSV 저장 완료: {csv_path}")
+        print(f"CSV 저장 완료: {csv_path}")
         
         # 메타데이터 저장
         metadata = {
@@ -122,7 +122,7 @@ class DataProcessor:
         metadata_path = self.output_dir / "dataset_metadata.pkl"
         with open(metadata_path, 'wb') as f:
             pickle.dump(metadata, f)
-        print(f"✅ 메타데이터 저장 완료: {metadata_path}")
+        print(f"메타데이터 저장 완료: {metadata_path}")
     
     def print_final_statistics(self, df: pd.DataFrame):
         """최종 통계 출력"""
