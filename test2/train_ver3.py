@@ -1,4 +1,4 @@
-# ensemble_train_speed_optimized.py (전체 데이터 + 속도 최적화)
+# ver1+ver2 ensemble 적용
 import os
 import pickle
 import torch
@@ -16,13 +16,13 @@ from torch.cuda.amp import autocast, GradScaler
 import time
 import torch.nn.functional as F
 
-# ------------------ 극도로 최적화된 Dataset ------------------
+# ------------------ 최적화된 Dataset ------------------
 class VideoFolderDataset(Dataset):
     def __init__(self, data_list, transform=None, is_training=True):
         self.data_list = []
         self.is_training = is_training
         
-        # ✅ 최소한의 변환으로 속도 최대화
+        # 최소한의 변환으로 속도 최대화
         if is_training:
             self.transform = transform or transforms.Compose([
                 transforms.Resize((224, 224)),
@@ -250,7 +250,7 @@ class TransformerEnsembleModel(nn.Module):
             )
 
     def forward(self, videos, fusion_feats):
-        # ✅ Mixed Precision과 함께 병렬 처리
+        # Mixed Precision과 함께 병렬 처리
         feats_v1 = self.cnn_v1(videos)
         feats_v2 = self.cnn_v2(videos)
         
@@ -286,14 +286,14 @@ def train_ensemble_speed(ensemble_model, loader, criterion, optimizer, device, s
         fusion = fusion.to(device, non_blocking=True)
         labels = labels.to(device, non_blocking=True).unsqueeze(1)
 
-        # ✅ Mixed Precision 적용
+        # Mixed Precision 적용
         with autocast():
             output = ensemble_model(videos, fusion)
             loss = criterion(output, labels) / accumulation_steps  # gradient accumulation용 스케일링
 
         scaler.scale(loss).backward()
         
-        # ✅ Gradient Accumulation으로 effective batch size 증가
+        # Gradient Accumulation으로 effective batch size 증가
         if (i + 1) % accumulation_steps == 0 or (i + 1) == len(loader):
             scaler.unscale_(optimizer)
             # Gradient clipping (선택사항)
@@ -325,7 +325,7 @@ def validate_ensemble_speed(ensemble_model, loader, criterion, device, max_batch
             fusion = fusion.to(device, non_blocking=True)
             labels = labels.to(device, non_blocking=True).unsqueeze(1)
             
-            # ✅ Mixed Precision 적용
+            # Mixed Precision 적용
             with autocast():
                 outputs = ensemble_model(videos, fusion)
                 loss = criterion(outputs, labels)
@@ -386,7 +386,7 @@ def evaluate_ensemble_speed(ensemble_model, loader, device, threshold=0.7, max_b
 
 # ------------------ 메인 함수 (속도 최적화) ------------------
 def main():
-    # ✅ 최대 GPU 최적화 설정
+    # 최대 GPU 최적화 설정
     torch.backends.cudnn.benchmark = True
     torch.backends.cudnn.deterministic = False
     torch.backends.cudnn.allow_tf32 = True
@@ -394,20 +394,20 @@ def main():
     torch.cuda.empty_cache()
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"🔥 사용 디바이스: {device}")
-    print("🚀 **속도 최적화된 전체 데이터 앙상블 훈련**")
+    print(f"사용 디바이스: {device}")
+    print(" **속도 최적화된 전체 데이터 앙상블 훈련**")
     print("="*70)
     
     if torch.cuda.is_available():
-        print(f"📊 GPU: {torch.cuda.get_device_name(0)}")
-        print(f"📊 GPU 메모리: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f}GB")
+        print(f"GPU: {torch.cuda.get_device_name(0)}")
+        print(f"GPU 메모리: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f}GB")
         # GPU 메모리 사용률 최대화
         torch.cuda.set_per_process_memory_fraction(0.95)
     
     ensemble_dir = "./log/ensemble"
     os.makedirs(ensemble_dir, exist_ok=True)
     
-    # ✅ 전체 데이터 사용
+    # 전체 데이터 사용
     base_path = r"C:\Users\user\Desktop\brainbuddy_AI\preprocess2\pickle_labels"
     
     train_pkl_files = [
@@ -422,11 +422,11 @@ def main():
     train_data_list = load_data(train_pkl_files)
     val_data_list = load_data(val_pkl_files)
 
-    # ✅ 전체 데이터 사용 (샘플링 없음)
+    # 전체 데이터 사용 (샘플링 없음)
     train_dataset = VideoFolderDataset(train_data_list, is_training=True)
     val_dataset = VideoFolderDataset(val_data_list, is_training=False)
 
-    # ✅ 큰 배치 크기 + 최적화 설정
+    # 큰 배치 크기 + 최적화 설정
     batch_size = 8  # GPU 메모리가 허용하는 최대 크기
     accumulation_steps = 4  # effective batch size = 8 * 4 = 32
     
@@ -451,13 +451,13 @@ def main():
         drop_last=False
     )
 
-    print(f"📊 훈련 데이터: {len(train_data_list):,}개")
-    print(f"📊 검증 데이터: {len(val_data_list):,}개")
-    print(f"📊 훈련 배치: {len(train_loader):,}개 (배치크기: {batch_size}, Accumulation: {accumulation_steps})")
-    print(f"📊 Effective Batch Size: {batch_size * accumulation_steps}")
+    print(f"훈련 데이터: {len(train_data_list):,}개")
+    print(f"검증 데이터: {len(val_data_list):,}개")
+    print(f"훈련 배치: {len(train_loader):,}개 (배치크기: {batch_size}, Accumulation: {accumulation_steps})")
+    print(f"Effective Batch Size: {batch_size * accumulation_steps}")
 
     # 사전 훈련된 모델들 로드
-    print("\n🔄 Transformer 모델들 로드 중...")
+    print("\n Transformer 모델들 로드 중...")
     
     # Version 1 모델 로드
     cnn_v1 = CNNEncoderV1().to(device)
@@ -467,9 +467,9 @@ def main():
         v1_checkpoint = torch.load("./log/best_model2.pt", map_location=device)
         cnn_v1.load_state_dict(v1_checkpoint['cnn_state_dict'])
         model_v1.load_state_dict(v1_checkpoint['model_state_dict'])
-        print("✅ Version 1 Transformer 로드 완료")
+        print("Version 1 Transformer 로드 완료")
     except Exception as e:
-        print(f"❌ Version 1 모델 로드 실패: {e}")
+        print(f"Version 1 모델 로드 실패: {e}")
         return
     
     # Version 2 모델 로드
@@ -480,9 +480,9 @@ def main():
         v2_checkpoint = torch.load("./log/v2/best_model_v2.pt", map_location=device)
         cnn_v2.load_state_dict(v2_checkpoint['cnn_state_dict'])
         model_v2.load_state_dict(v2_checkpoint['model_state_dict'])
-        print("✅ Version 2 Transformer 로드 완료")
+        print("Version 2 Transformer 로드 완료")
     except Exception as e:
-        print(f"❌ Version 2 모델 로드 실패: {e}")
+        print(f"Version 2 모델 로드 실패: {e}")
         return
     
     # 사전 훈련된 모델들을 고정
@@ -500,7 +500,7 @@ def main():
     cnn_v2.eval()
     model_v2.eval()
     
-    # ✅ 학습 가능한 앙상블 모델
+    # 학습 가능한 앙상블 모델
     ensemble_model = TransformerEnsembleModel(
         cnn_v1, model_v1, cnn_v2, model_v2, 
         ensemble_method='learned'  # 학습 가능한 앙상블
@@ -510,7 +510,7 @@ def main():
     pos_weight = torch.tensor([1.2]).to(device)
     criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
     
-    # ✅ 학습 가능한 파라미터만 옵티마이저에 추가
+    # 학습 가능한 파라미터만 옵티마이저에 추가
     trainable_params = []
     trainable_params.append(ensemble_model.ensemble_weights)
     trainable_params.extend(list(ensemble_model.ensemble_fc.parameters()))
@@ -557,8 +557,8 @@ def main():
         val_loss = validate_ensemble_speed(ensemble_model, val_loader, criterion, device)
         val_time = time.time() - val_start
         
-        print(f"[Epoch {epoch+1}] Train Loss: {train_loss:.4f} (⏱️{train_time/60:.1f}분)")
-        print(f"[Epoch {epoch+1}] Val Loss: {val_loss:.4f} (⏱️{val_time/60:.1f}분)")
+        print(f"[Epoch {epoch+1}] Train Loss: {train_loss:.4f} ({train_time/60:.1f}분)")
+        print(f"[Epoch {epoch+1}] Val Loss: {val_loss:.4f} ({val_time/60:.1f}분)")
 
         # 빠른 성능 평가 (200 배치만 샘플링)
         eval_start = time.time()
@@ -609,7 +609,7 @@ def main():
                     'speed_optimized': True
                 }
             }, best_model_path)
-            print(f"✅ Best model saved (Val Loss: {val_loss:.4f}, Acc: {accuracy:.4f})")
+            print(f"Best model saved (Val Loss: {val_loss:.4f}, Acc: {accuracy:.4f})")
             patience_counter = 0
         else:
             patience_counter += 1
@@ -632,7 +632,7 @@ def main():
     # 로그 저장
     log_df = pd.DataFrame(log_history)
     log_df.to_csv(f"{ensemble_dir}/speed_ensemble_log.csv", index=False)
-    print(f"\n📄 Training log saved to {ensemble_dir}/speed_ensemble_log.csv")
+    print(f"\n Training log saved to {ensemble_dir}/speed_ensemble_log.csv")
 
     # 최종 결과
     checkpoint = torch.load(best_model_path, map_location=device)
@@ -642,29 +642,29 @@ def main():
     final_weights = checkpoint['ensemble_weights']
     
     print("\n" + "="*70)
-    print("🎉 **속도 최적화 앙상블 모델 완료!**")
+    print(" **속도 최적화 앙상블 모델 완료!**")
     print("="*70)
-    print(f"🔸 Version 1 (기본): 72.5% 정확도")
-    print(f"🔸 Version 2 (개선): 76.9% 정확도")
-    print(f"🔸 앙상블 (전체 데이터): {final_accuracy:.1%} 정확도")
-    print(f"🔸 성능 향상: +{(final_accuracy - 0.769) * 100:.1f}%p (vs Version 2)")
-    print(f"🔸 재현율: {final_recall:.1%}")
-    print(f"🔸 F1-Score: {final_f1:.1%}")
+    print(f"Version 1 (기본): 72.5% 정확도")
+    print(f"Version 2 (개선): 76.9% 정확도")
+    print(f"앙상블 (전체 데이터): {final_accuracy:.1%} 정확도")
+    print(f"성능 향상: +{(final_accuracy - 0.769) * 100:.1f}%p (vs Version 2)")
+    print(f"재현율: {final_recall:.1%}")
+    print(f"F1-Score: {final_f1:.1%}")
     
     if final_weights is not None:
         weights = torch.softmax(final_weights, dim=0).numpy()
-        print(f"🔸 학습된 최종 가중치: V1={weights[0]:.3f}, V2={weights[1]:.3f}")
+        print(f"학습된 최종 가중치: V1={weights[0]:.3f}, V2={weights[1]:.3f}")
     
     avg_time_per_epoch = log_df['total_time_min'].mean()
-    print(f"⚡ 평균 에포크 시간: {avg_time_per_epoch:.1f}분")
-    print(f"📁 모델 저장: {best_model_path}")
+    print(f"평균 에포크 시간: {avg_time_per_epoch:.1f}분")
+    print(f"모델 저장: {best_model_path}")
     
     if final_accuracy > 0.785:
-        print("🎉 78.5% 이상 달성! 속도 최적화 + 성능 향상 성공!")
+        print("속도 최적화 + 성능 향상 성공!")
     elif final_accuracy > 0.77:
-        print("✅ 속도와 성능의 균형잡힌 개선!")
+        print("속도와 성능의 균형잡힌 개선!")
     else:
-        print("📊 속도는 개선되었으나 성능 향상은 제한적")
+        print("속도는 개선되었으나 성능 향상은 제한적")
 
 if __name__ == '__main__':
     main()
