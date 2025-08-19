@@ -107,7 +107,8 @@ BrainBuddyAI : Deep Learning Based Engagement Measuring Model (CNN → LSTM)
 ## 4. 직접 로컬에서 실행해보기
 1. "best_model.pt"를 다운로드
 2. `real_time.py`의 CKPT_PATH에 해당 .pt 경로 지정
-3. `python real_time.py`<br>
+3. `python real_time.py`
+<br><br>
    *T_WINDOW와 STRIDE_SEC를 바꾸어 윈도우 크기, 추론 시간을 조정할 수 있습니다.<br>
    *현재는 30프레임단위로 5초마다 추론하는 방식으로 구성되어 있어, 집중도 화면의 결과값에 딜레이가 있을 수 있습니다.<br>
  <br>
