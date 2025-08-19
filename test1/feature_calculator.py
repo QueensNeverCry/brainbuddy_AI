@@ -103,7 +103,7 @@ class DynamicFeatureCalculator:
         l_ear_list = person_data['l_EAR'].tolist()
         r_ear_list = person_data['r_EAR'].tolist()
         
-        # 거리 데이터
+        # 거리 데이터 
         distance_list = person_data['cam_distance'].tolist()
         
         dynamic_features = {
