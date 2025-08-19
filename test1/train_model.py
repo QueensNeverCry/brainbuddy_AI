@@ -7,7 +7,7 @@ def train_xgboost_concentration_model():
     """XGBoost 기반 집중도 모델 학습 (불균형 데이터 보완)"""
     
     print("=== XGBoost 기반 3클래스 집중도 모델 학습 ===")
-    print("🚀 불균형 데이터 보완 기능 포함\n")
+    print("불균형 데이터 보완 기능 포함\n")
     
     # 1. 데이터 로드
     print("1단계: 처리된 데이터셋 로드...")
@@ -15,10 +15,10 @@ def train_xgboost_concentration_model():
     
     try:
         df = pd.read_csv(csv_path)
-        print(f"✅ 데이터 로드 완료: {len(df)}개 샘플")
+        print(f"데이터 로드 완료: {len(df)}개 샘플")
     except FileNotFoundError:
-        print(f"❌ 데이터 파일을 찾을 수 없습니다: {csv_path}")
-        print("💡 먼저 data_processor.py를 실행하여 데이터를 처리하세요.")
+        print(f"데이터 파일을 찾을 수 없습니다: {csv_path}")
+        print("먼저 data_processor.py를 실행하여 데이터를 처리하세요.")
         return
     
     # 2. 분류기 초기화 및 특징 준비
@@ -74,21 +74,21 @@ def train_xgboost_concentration_model():
     tune_hyperparams = tune_params in ['y', 'yes']
     
     if tune_hyperparams:
-        print("⚠️ 하이퍼파라미터 튜닝은 시간이 오래 걸릴 수 있습니다 (10-30분)")
+        print("하이퍼파라미터 튜닝은 시간이 오래 걸릴 수 있습니다 (10-30분)")
     
     # XGBoost 학습
-    print("🌟 XGBoost 학습 중...")
+    print("XGBoost 학습 중...")
     training_results = classifier.train_xgboost_simple(X_train_processed, y_train_processed)
 
         
-    print(f"✅ XGBoost CV 점수 (F1-Macro): {training_results['cv_mean']:.4f} (+/- {training_results['cv_std']*2:.4f})")
+    print(f"XGBoost CV 점수 (F1-Macro): {training_results['cv_mean']:.4f} (+/- {training_results['cv_std']*2:.4f})")
     
     # 6. 모델 평가
     print("\n6단계: 모델 성능 평가...")
     evaluation = classifier.evaluate_advanced(X_test, y_test, feature_columns)
     
     # 7. 결과 출력
-    print(f"\n=== 🎯 최종 평가 결과 ===")
+    print(f"\n=== 최종 평가 결과 ===")
     print(f"모델: {training_results['model_type']}")
     print(f"정확도: {evaluation['accuracy']:.4f}")
     print(f"F1 Score (Macro): {evaluation['f1_macro']:.4f}")
@@ -121,9 +121,9 @@ def train_xgboost_concentration_model():
     model_path = "./xgboost_3class_concentration_classifier.pkl"
     classifier.save_model(model_path, feature_columns)
     
-    print(f"\n🎉 XGBoost 모델 학습 완료!")
-    print(f"📁 모델 저장 경로: {model_path}")
-    print("🚀 inference.py로 실시간 테스트를 진행할 수 있습니다.")
+    print(f"\nXGBoost 모델 학습 완료!")
+    print(f"모델 저장 경로: {model_path}")
+    print("inference.py로 실시간 테스트를 진행할 수 있습니다.")
 
 if __name__ == "__main__":
     train_xgboost_concentration_model()
