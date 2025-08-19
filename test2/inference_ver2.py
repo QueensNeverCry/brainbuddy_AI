@@ -1,4 +1,4 @@
-# inference2_stable.py (안정적인 Version 2 테스트)
+# inference_ver2.py
 import os
 import pickle
 import cv2
@@ -36,7 +36,7 @@ class VideoFolderDataset(Dataset):
                 if len(img_files) >= 30:
                     self.data_list.append((folder_path, label))
         
-        print(f"🎯 데이터셋 초기화 완료: {len(self.data_list)}개 유효 샘플")
+        print(f"데이터셋 초기화 완료: {len(self.data_list)}개 유효 샘플")
 
     def __len__(self):
         return len(self.data_list)
@@ -52,7 +52,7 @@ class VideoFolderDataset(Dataset):
                 img_pil = Image.open(img_path).convert('RGB')
                 frames.append(self.transform(img_pil))
             except Exception as e:
-                print(f"⚠️ 이미지 로드 실패: {img_path}")
+                print(f"이미지 로드 실패: {img_path}")
                 continue
         
         # 30개 프레임 보장
@@ -171,17 +171,17 @@ def load_data(pkl_files):
     all_data = []
     for pkl_path in pkl_files:
         if not os.path.exists(pkl_path):
-            print(f"⚠️ 파일을 찾을 수 없습니다: {pkl_path}")
+            print(f"파일을 찾을 수 없습니다: {pkl_path}")
             continue
         with open(pkl_path, 'rb') as f:
             data = pickle.load(f)
             all_data.extend(data)
-            print(f"✅ 로드됨: {pkl_path} ({len(data)}개 샘플)")
+            print(f"로드됨: {pkl_path} ({len(data)}개 샘플)")
     return all_data
 
 def test_multiple_thresholds(all_probs, all_labels):
     """여러 임계값으로 성능 테스트"""
-    print("\n🎯 **임계값별 성능 비교**")
+    print("\n **임계값별 성능 비교**")
     print("="*60)
     
     best_threshold = 0.5
@@ -199,7 +199,7 @@ def test_multiple_thresholds(all_probs, all_labels):
             best_f1 = f1
             best_threshold = threshold
     
-    print(f"\n🏆 **최적 임계값: {best_threshold:.1f} (F1={best_f1:.4f})**")
+    print(f"\n **최적 임계값: {best_threshold:.1f} (F1={best_f1:.4f})**")
     return best_threshold
 
 def get_optimal_batch_size(total_samples, device):
@@ -218,8 +218,8 @@ def get_optimal_batch_size(total_samples, device):
 # ------------------ Main Test Function ------------------
 def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"🔥 사용 디바이스: {device}")
-    print("🚀 **Version 2 모델 테스트 시작 (앙상블 방식 적용)**")
+    print(f"사용 디바이스: {device}")
+    print(" **Version 2 모델 테스트 시작 (앙상블 방식 적용)**")
     print("="*60)
 
     # ✅ Version 2 모델 경로
@@ -233,16 +233,16 @@ def main():
     # 데이터 로드
     test_data_list = load_data(test_pkl_files)
     if len(test_data_list) == 0:
-        print("❌ 테스트 데이터가 없습니다. 경로를 확인해주세요.")
+        print("테스트 데이터가 없습니다. 경로를 확인해주세요.")
         return
     
-    print(f"📊 총 테스트 데이터: {len(test_data_list):,}개")
+    print(f"총 테스트 데이터: {len(test_data_list):,}개")
     
     test_dataset = VideoFolderDataset(test_data_list)
     
-    # ✅ 앙상블과 동일한 방식으로 최적 배치 사이즈 계산
+    # 앙상블과 동일한 방식으로 최적 배치 사이즈 계산
     optimal_batch_size = get_optimal_batch_size(len(test_dataset), device)
-    print(f"🎯 최적 배치 사이즈: {optimal_batch_size}")
+    print(f"최적 배치 사이즈: {optimal_batch_size}")
     
     test_loader = DataLoader(
         test_dataset, 
@@ -253,33 +253,33 @@ def main():
         drop_last=False  # 모든 데이터 사용
     )
     
-    print(f"📦 총 {len(test_loader)}개 배치로 분할 (배치당 최대 {optimal_batch_size}개)")
-    print(f"🎯 처리될 총 샘플 수: {len(test_dataset)}개 (100% 사용)")
+    print(f"총 {len(test_loader)}개 배치로 분할 (배치당 최대 {optimal_batch_size}개)")
+    print(f"처리될 총 샘플 수: {len(test_dataset)}개 (100% 사용)")
 
-    # ✅ Version 2 모델 초기화
+    # Version 2 모델 초기화
     cnn = CNNEncoder().to(device)
     model = EngagementModelV2(d_model=256, nhead=8, num_layers=4).to(device)
 
     if not os.path.exists(best_model_path):
-        print(f"❌ 모델 파일을 찾을 수 없습니다: {best_model_path}")
+        print(f"모델 파일을 찾을 수 없습니다: {best_model_path}")
         print("다음 경로들을 확인해보세요:")
         print("  - ./log/v2/best_model_v2.pt")
         print("  - ./log/best_model2.pt")
         return
 
-    print(f"📂 Version 2 모델 로딩 중: {best_model_path}")
+    print(f"Version 2 모델 로딩 중: {best_model_path}")
     try:
         ckpt = torch.load(best_model_path, map_location=device)
         cnn.load_state_dict(ckpt['cnn_state_dict'])
         model.load_state_dict(ckpt['model_state_dict'])
         
         if 'epoch' in ckpt:
-            print(f"✅ 모델 로딩 완료 (Epoch {ckpt['epoch'] + 1}, Val Loss: {ckpt.get('val_loss', 'N/A'):.4f})")
+            print(f"모델 로딩 완료 (Epoch {ckpt['epoch'] + 1}, Val Loss: {ckpt.get('val_loss', 'N/A'):.4f})")
         else:
-            print("✅ 모델 로딩 완료")
+            print("모델 로딩 완료")
             
     except Exception as e:
-        print(f"❌ 모델 로딩 실패: {e}")
+        print(f"모델 로딩 실패: {e}")
         return
 
     cnn.eval()
@@ -289,7 +289,7 @@ def main():
     all_probs, all_preds, all_labels = [], [], []
     total_processed = 0
 
-    print(f"\n🔄 Version 2 추론 시작 (총 {len(test_dataset)}개 샘플)...")
+    print(f"\nVersion 2 추론 시작 (총 {len(test_dataset)}개 샘플)...")
     with torch.no_grad():
         for batch_idx, (videos, fusion, labels) in enumerate(tqdm(test_loader, desc="Version 2 Test")):
             videos = videos.to(device, non_blocking=True)
@@ -317,34 +317,34 @@ def main():
             if batch_idx == 0 or batch_idx == len(test_loader) - 1 or (batch_idx + 1) % 20 == 0:
                 print(f"  배치 {batch_idx + 1}/{len(test_loader)}: {current_batch_size}개 샘플 처리 완료 (누적: {total_processed}개)")
 
-    print(f"✅ 총 {total_processed}개 샘플 처리 완료 (예상: {len(test_dataset)}개)")
+    print(f"총 {total_processed}개 샘플 처리 완료 (예상: {len(test_dataset)}개)")
 
-    # ✅ 기본 성능 지표 계산
+    # 기본 성능 지표 계산
     acc = accuracy_score(all_labels, all_preds)
     rec = recall_score(all_labels, all_preds, zero_division=0)
     f1 = f1_score(all_labels, all_preds, zero_division=0)
     cm = confusion_matrix(all_labels, all_preds)
 
     print("\n" + "="*60)
-    print("📊 **Version 2 테스트 결과 (임계값 0.5)**")
+    print(" **Version 2 테스트 결과 (임계값 0.5)**")
     print("="*60)
-    print(f"✅ Accuracy: {acc:.4f} | Recall: {rec:.4f} | F1: {f1:.4f}")
+    print(f" Accuracy: {acc:.4f} | Recall: {rec:.4f} | F1: {f1:.4f}")
     print("\nConfusion Matrix:")
     print(cm)
     
     # 클래스별 분포 출력
     unique, counts = np.unique(all_labels, return_counts=True)
-    print(f"\n📋 실제 라벨 분포: {dict(zip(unique, counts))}")
+    print(f"\n 실제 라벨 분포: {dict(zip(unique, counts))}")
     unique, counts = np.unique(all_preds, return_counts=True)
-    print(f"📋 예측 라벨 분포: {dict(zip(unique, counts))}")
+    print(f" 예측 라벨 분포: {dict(zip(unique, counts))}")
 
     # 데이터 사용률 확인
     expected_samples = len(test_dataset)
     actual_samples = len(all_labels)
     usage_rate = (actual_samples / expected_samples) * 100
-    print(f"\n📊 **데이터 사용률**: {actual_samples}/{expected_samples} ({usage_rate:.1f}%)")
+    print(f"\n **데이터 사용률**: {actual_samples}/{expected_samples} ({usage_rate:.1f}%)")
 
-    # ✅ 여러 임계값으로 최적화
+    # 여러 임계값으로 최적화
     best_threshold = test_multiple_thresholds(all_probs, all_labels)
     
     # 최적 임계값으로 재계산
@@ -355,11 +355,11 @@ def main():
     best_cm = confusion_matrix(all_labels, best_preds)
 
     print("\n" + "="*60)
-    print(f"📊 **Version 2 최적화 결과 (임계값 {best_threshold:.1f})**")
+    print(f" **Version 2 최적화 결과 (임계값 {best_threshold:.1f})**")
     print("="*60)
-    print(f"🏆 Accuracy: {best_acc:.4f} | Recall: {best_rec:.4f} | F1: {best_f1:.4f}")
+    print(f" Accuracy: {best_acc:.4f} | Recall: {best_rec:.4f} | F1: {best_f1:.4f}")
     
-    # ✅ 혼동행렬 저장
+    # 혼동행렬 저장
     save_dir = "./log/v2/test_results"
     os.makedirs(os.path.join(save_dir, "confusion_matrix"), exist_ok=True)
     
@@ -379,33 +379,33 @@ def main():
     plt.savefig(out_path_best, dpi=200, bbox_inches="tight")
     plt.close()
     
-    print(f"\n📊 Confusion matrices saved:")
+    print(f"\n Confusion matrices saved:")
     print(f"  - Basic (0.5): {out_path_basic}")
     print(f"  - Optimal ({best_threshold:.1f}): {out_path_best}")
 
-    # ✅ 최종 성능 요약
+    # 최종 성능 요약
     print("\n" + "="*60)
-    print("🎉 **Version 2 안정적 처리 완료!**")
+    print(" **Version 2 안정적 처리 완료!**")
     print("="*60)
-    print(f"🔸 처리된 데이터: {actual_samples:,}개 ({usage_rate:.1f}%)")
-    print(f"🔸 배치 크기: {optimal_batch_size}개 (앙상블 방식)")
-    print(f"🔸 총 배치 수: {len(test_loader)}개")
-    print(f"🔸 Version 2 정확도: {best_acc:.1%}")
-    print(f"🔸 재현율: {best_rec:.1%}")
-    print(f"🔸 F1-Score: {best_f1:.1%}")
-    print(f"🔸 최적 임계값: {best_threshold}")
+    print(f" 처리된 데이터: {actual_samples:,}개 ({usage_rate:.1f}%)")
+    print(f" 배치 크기: {optimal_batch_size}개 (앙상블 방식)")
+    print(f" 총 배치 수: {len(test_loader)}개")
+    print(f" Version 2 정확도: {best_acc:.1%}")
+    print(f" 재현율: {best_rec:.1%}")
+    print(f" F1-Score: {best_f1:.1%}")
+    print(f" 최적 임계값: {best_threshold}")
     
     # 성능 평가
     if best_acc > 0.80:
-        print("🎉 80% 이상! 훌륭한 성능입니다!")
+        print(" 80% 이상! 훌륭한 성능입니다!")
     elif best_acc > 0.70:
-        print("✅ 70% 이상! 양호한 성능입니다!")
+        print(" 70% 이상! 양호한 성능입니다!")
     elif best_acc > 0.60:
-        print("👍 60% 이상! 개선 여지가 있습니다!")
+        print(" 60% 이상! 개선 여지가 있습니다!")
     else:
-        print("⚠️ 성능이 제한적입니다. 모델 재훈련을 고려해보세요.")
+        print(" 성능이 제한적입니다. 모델 재훈련을 고려해보세요.")
     
-    print(f"\n💡 **처리 방식 요약**")
+    print(f"\n **처리 방식 요약**")
     print(f"   - 앙상블과 동일한 안정적 배치 처리 방식 적용")
     print(f"   - GPU 메모리 효율적 사용")
     print(f"   - 전체 702개 샘플 100% 처리 완료")
