@@ -145,7 +145,7 @@ class JSONFeatureExtractor:
             return static_features
             
         except Exception as e:
-            print(f"❌ 특징 추출 중 오류: {e}")
+            print(f"특징 추출 중 오류: {e}")
             return None
     
     def process_all_json_files(self) -> List[Dict]:
