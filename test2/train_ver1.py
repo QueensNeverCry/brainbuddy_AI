@@ -44,7 +44,7 @@ class VideoFolderDataset(Dataset):
                 img_pil = Image.open(img_path).convert('RGB')
                 frames.append(self.transform(img_pil))
             except Exception as e:
-                print(f"⚠️ 이미지 로드 실패: {img_path}")
+                print(f"이미지 로드 실패: {img_path}")
                 continue
         
         
@@ -163,29 +163,29 @@ def train(model_cnn, model_top, loader, criterion, optimizer, device, scaler, ac
     optimizer.zero_grad()
 
     for i, (videos, fusion, labels) in enumerate(tqdm(loader, desc="Train")):
-        # 🔥 non_blocking으로 GPU 전송 최적화
+        # non_blocking으로 GPU 전송 최적화
         videos = videos.to(device, non_blocking=True)
         fusion = fusion.to(device, non_blocking=True)
         labels = labels.to(device, non_blocking=True).unsqueeze(1)
 
-        # 🔥 Mixed Precision 적용 - autocast로 감싸기
+        # Mixed Precision 적용 - autocast로 감싸기
         with autocast():
             features = model_cnn(videos)
             output = model_top(features, fusion)
             loss = criterion(output, labels)
 
-        # 🔥 기존 loss.backward()를 scaler로 변경
+        # 기존 loss.backward()를 scaler로 변경
         scaler.scale(loss).backward()
         total_loss += loss.item()
 
         if (i + 1) % accumulation_steps == 0 or (i + 1) == len(loader):
-            # 🔥 그래디언트 클리핑도 scaler와 함께 사용
+            # 그래디언트 클리핑도 scaler와 함께 사용
             scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(
                 list(model_cnn.parameters()) + list(model_top.parameters()), 
                 max_norm=1.0
             )
-            # 🔥 optimizer.step()을 scaler로 변경
+            # optimizer.step()을 scaler로 변경
             scaler.step(optimizer)
             scaler.update()
             optimizer.zero_grad()
@@ -199,12 +199,12 @@ def validate(model_cnn, model_top, loader, criterion, device):
 
     with torch.no_grad():
         for videos, fusion, labels in tqdm(loader, desc="Validation"):
-            # 🔥 non_blocking 최적화
+            # non_blocking 최적화
             videos = videos.to(device, non_blocking=True)
             fusion = fusion.to(device, non_blocking=True)
             labels = labels.to(device, non_blocking=True).unsqueeze(1)
             
-            # 🔥 Mixed Precision 적용
+            # Mixed Precision 적용
             with autocast():
                 features = model_cnn(videos)
                 outputs = model_top(features, fusion)
@@ -220,7 +220,7 @@ def load_data(pkl_files):
             data = pickle.load(f)
             all_data.extend(data)
     
-    # 🔥 로딩 후 즉시 셔플링
+    # 로딩 후 즉시 셔플링
     import random
     random.shuffle(all_data)
     return all_data
@@ -267,7 +267,7 @@ def evaluate_and_save_confusion_matrix(model_cnn, model_top, loader, device, epo
     plt.title(f"Confusion Matrix - Epoch {epoch+1}")
     plt.savefig(f"./log/confusion_matrix/train1/conf_matrix_epoch_{epoch+1}.png")
     plt.close()
-    print(f"📊 Confusion matrix saved: conf_matrix_epoch_{epoch+1}.png")
+    print(f"Confusion matrix saved: conf_matrix_epoch_{epoch+1}.png")
 
 def evaluate_metrics(model_cnn, model_top, loader, device):
     model_cnn.eval()
@@ -295,12 +295,12 @@ def main():
     torch.backends.cudnn.benchmark = True  # 성능 향상
     torch.cuda.empty_cache()  # 메모리 정리
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"🔥 사용 디바이스: {device}")
+    print(f"사용 디바이스: {device}")
     
     # GPU 메모리 사용량 확인
     if torch.cuda.is_available():
-        print(f"📊 GPU: {torch.cuda.get_device_name(0)}")
-        print(f"📊 GPU 메모리: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f}GB")
+        print(f"GPU: {torch.cuda.get_device_name(0)}")
+        print(f"GPU 메모리: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f}GB")
         
     # 수정된 경로: 사용자가 제공한 Desktop 기반 경로 사용
     base_path = r"C:\Users\user\Desktop\brainbuddy_AI\preprocess2\pickle_labels"
@@ -322,10 +322,10 @@ def main():
     train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=8, pin_memory=True)
     val_loader = DataLoader(val_dataset, batch_size=4, shuffle=False, num_workers=8, pin_memory=True)
 
-    print("🔍 Training 데이터 배치 분포 확인:")
+    print("Training 데이터 배치 분포 확인:")
     check_batch_distribution(train_loader, num_batches=3)
     
-    print("🔍 Validation 데이터 배치 분포 확인:")
+    print("Validation 데이터 배치 분포 확인:")
     check_batch_distribution(val_loader, num_batches=3)
 
     # 모델 초기화 (Transformer 기반으로 변경)
@@ -347,7 +347,7 @@ def main():
 
     """
     if os.path.exists(checkpoint_path):
-        print(f"🔄 Resuming training from {checkpoint_path}")
+        print(f"Resuming training from {checkpoint_path}")
         ckpt = torch.load(checkpoint_path, map_location=device)
         cnn.load_state_dict(ckpt['cnn_state_dict'])
         model.load_state_dict(ckpt['model_state_dict'])
@@ -385,7 +385,7 @@ def main():
                 'epoch': epoch,
                 'val_loss': val_loss
             }, best_model_path)
-            print(f"✅ Best model saved at epoch {epoch+1} with val_loss {val_loss:.4f}")
+            print(f"Best model saved at epoch {epoch+1} with val_loss {val_loss:.4f}")
         else:
             patience_counter += 1
             print(f"Early stopping patience {patience_counter}/{patience}")
@@ -400,17 +400,17 @@ def main():
             'epoch': epoch,
             'best_val_loss': best_val_loss
         }, checkpoint_path)
-        print(f"💾 Checkpoint saved at epoch {epoch+1}")
+        print(f"Checkpoint saved at epoch {epoch+1}")
 
     log_df = pd.DataFrame(log_history)
     log_df.to_csv("./log/train_log2.csv", index=False)
-    print("📄 Training log saved to train_log.csv")
+    print("Training log saved to train_log.csv")
 
     checkpoint = torch.load(best_model_path, map_location=device)
     cnn.load_state_dict(checkpoint['cnn_state_dict'])
     model.load_state_dict(checkpoint['model_state_dict'])
     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-    print(f"🔁 Loaded best model from epoch {checkpoint['epoch']+1} (val_loss={checkpoint['val_loss']:.4f})")
+    print(f"Loaded best model from epoch {checkpoint['epoch']+1} (val_loss={checkpoint['val_loss']:.4f})")
 
 if __name__ == '__main__':
     main()
