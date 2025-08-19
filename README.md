@@ -63,12 +63,12 @@ BrainBuddyAI : Deep Learning Based Engagement Measuring Model (CNN → LSTM)
 ## 0. 모델 구조
 <img src="https://github.com/user-attachments/assets/4aace760-7b52-4cb1-bda2-6202143f7e62" width="500" ><br>
 30프레임 시퀀스 -> CNN(MobileNetV3-Large) -> LSTM -> 집중여부(0/1)
-<br>
+<br><br><br>
 
 ## 1. 데이터 
 ### 사용 데이터셋
 [학습태도 및 성향 관찰 데이터](https://www.aihub.or.kr/aihubdata/data/view.do?currMenu=115&topMenu=100&aihubDataSe=realm&dataSetSn=71715)
-<br><br>
+<br>
 
 ### 전처리 및 라벨링
 `python -m preprocess2.ext` mediapipe로 facecrop 후 10초에 30frame씩 추출
@@ -84,7 +84,7 @@ BrainBuddyAI : Deep Learning Based Engagement Measuring Model (CNN → LSTM)
 - Optimizer: AdamW
 - Loss Function: BCEWithLogitsLoss + CosineAnnealingLR
 - Gradient Accumulation = 8 step
-<br>
+<br><br>
  
 ## 3. 모델 테스트 및 성능
  
@@ -93,7 +93,7 @@ BrainBuddyAI : Deep Learning Based Engagement Measuring Model (CNN → LSTM)
 | AIhub test set | 0.8088 | 0.8690 | 0.8149 |
 | 자체 개발 test set | 0.7470 | 0.7823 | 0.7239 |
 
-<br>
+<br><br>
 
 최종 모델 평가를 위해 팀원들이 직접 웹캠으로 촬영한 5분 내외의 자체 개발 test set을 사용하였습니다.
 <p align="center">
@@ -101,7 +101,7 @@ BrainBuddyAI : Deep Learning Based Engagement Measuring Model (CNN → LSTM)
   <img src="https://github.com/user-attachments/assets/e21fd614-98ae-430b-bffc-8d64eddc1d8f" width="47%">
 </p>
 
-<br>
+<br><br>
 
 ## 4. 직접 로컬에서 실행해보기
 1. "best_model.pt"를 다운로드
