@@ -87,7 +87,7 @@ class ConcentrationClassifier:
         print(f"불균형 비율: {imbalance_ratio:.2f}:1")
         
         # 간단한 리샘플링 적용 (메모리 절약)
-        print(f"\n💾 메모리 절약형 리샘플링 적용 중...")
+        print(f"\n 메모리 절약형 리샘플링 적용 중...")
         
         try:
             # 데이터 크기 확인
@@ -95,7 +95,7 @@ class ConcentrationClassifier:
             print(f"현재 데이터 크기: {data_size_mb:.1f} MB")
             
             if data_size_mb > 100:  # 100MB 초과시 리샘플링 제한
-                print("⚠️ 데이터가 너무 큼, 클래스 가중치만 적용")
+                print("데이터가 너무 큼, 클래스 가중치만 적용")
                 return X_scaled, y
             
             # 간단한 SMOTE (k_neighbors 최소화)
@@ -105,21 +105,21 @@ class ConcentrationClassifier:
                 sampling_strategy='auto'  # 자동 균형
             )
             
-            print("🔄 SMOTE 리샘플링 중...")
+            print("SMOTE 리샘플링 중...")
             X_balanced, y_balanced = smote_simple.fit_resample(X_scaled, y)
             
             # 결과 확인
             balanced_size_mb = X_balanced.nbytes / (1024 * 1024)
             print(f"리샘플링 후 크기: {balanced_size_mb:.1f} MB")
             
-            print(f"✅ 리샘플링 완료:")
+            print(f"리샘플링 완료:")
             unique_balanced, counts_balanced = np.unique(y_balanced, return_counts=True)
             for cls, count in zip(unique_balanced, counts_balanced):
                 print(f"  {self.class_names[cls]}: {count}개")
             
             # 메모리 체크
             if balanced_size_mb > 500:  # 500MB 초과시 샘플 줄이기
-                print("⚠️ 리샘플링 데이터가 너무 큼, 샘플링 줄임")
+                print("리샘플링 데이터가 너무 큼, 샘플링 줄임")
                 
                 # 각 클래스당 최대 1000개로 제한
                 max_samples_per_class = 1000
@@ -140,20 +140,20 @@ class ConcentrationClassifier:
                 X_balanced = X_balanced[indices_to_keep]
                 y_balanced = y_balanced[indices_to_keep]
                 
-                print(f"📉 샘플링 후 최종 크기: {len(X_balanced)}개")
+                print(f"샘플링 후 최종 크기: {len(X_balanced)}개")
             
             return X_balanced, y_balanced
             
         except Exception as e:
-            print(f"❌ 리샘플링 실패: {str(e)}")
-            print("🔄 원본 데이터로 진행...")
+            print(f"리샘플링 실패: {str(e)}")
+            print("원본 데이터로 진행...")
             
             # 리샘플링 실패시 원본 데이터 사용
             return X_scaled, y
         
         except MemoryError:
-            print("❌ 메모리 부족으로 리샘플링 실패")
-            print("🔄 원본 데이터로 진행...")
+            print("메모리 부족으로 리샘플링 실패")
+            print("원본 데이터로 진행...")
             return X_scaled, y
 
     
@@ -185,8 +185,8 @@ class ConcentrationClassifier:
             }
             
         except Exception as e:
-            print(f"❌ XGBoost 오류: {e}")
-            print("🔄 RandomForest로 대체 학습...")
+            print(f"XGBoost 오류: {e}")
+            print("RandomForest로 대체 학습...")
             
             # 대체: RandomForest 사용
             from sklearn.ensemble import RandomForestClassifier
@@ -215,7 +215,7 @@ class ConcentrationClassifier:
             feature_importance = list(zip(feature_columns, importances))
             feature_importance.sort(key=lambda x: x[1], reverse=True)
             
-            print(f"\n🎯 상위 15개 중요 특징 (XGBoost):")
+            print(f"\n 상위 15개 중요 특징 (XGBoost):")
             for i, (feature, importance) in enumerate(feature_importance[:15]):
                 print(f"  {i+1:2d}. {feature:20s}: {importance:.4f}")
             
