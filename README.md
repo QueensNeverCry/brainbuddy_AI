@@ -107,9 +107,10 @@ BrainBuddyAI : Deep Learning Based Engagement Measuring Model (CNN → LSTM)
 | AIhub test set | 0.8088 | 0.8690 | 0.8149 |
 | 자체 개발 test set | 0.7470 | 0.7823 | 0.7239 |
 
-<br><br>
+<br>
 
-최종 모델 평가를 위해 팀원들이 직접 웹캠으로 촬영한 5분 내외의 자체 개발 test set을 사용하였습니다.
+모델 실험 과정에서는 AIHub의 데이터셋을, 최종 모델 평가에서는 팀원들이 직접 웹캠으로 촬영한 5분 내외의 자체 개발 test set을 사용하였습니다. 아래는 자체 수집한 데이터셋 사진입니다.
+<br>
 <p align="center">
   <img src="https://github.com/user-attachments/assets/f10c8132-fd12-48e8-a942-6c880c4e3ae9" width="51%">
   <img src="https://github.com/user-attachments/assets/e21fd614-98ae-430b-bffc-8d64eddc1d8f" width="47%">
@@ -120,7 +121,10 @@ BrainBuddyAI : Deep Learning Based Engagement Measuring Model (CNN → LSTM)
 ## 4. 직접 로컬에서 실행해보기
 1. "best_model.pt"를 다운로드
 2. `real_time.py`의 CKPT_PATH에 해당 .pt 경로 지정
-3. `python real_time.py`
+3. `python real_time.py`<br>
+   *T_WINDOW와 STRIDE_SEC를 바꾸어 윈도우 크기, 추론 시간을 조정할 수 있습니다.<br>
+   *현재는 30프레임단위로 5초마다 추론하는 방식으로 구성되어 있어, 집중도 화면의 결과값에 딜레이가 있을 수 있습니다.<br>
+ <br>
  <br>
 
 
