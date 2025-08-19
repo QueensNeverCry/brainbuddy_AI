@@ -190,7 +190,7 @@ class ConcentrationInference:
         raw_pred, probs = self.classifier.predict(feat_vec.reshape(1, -1))
         raw_cls = raw_pred[0]
         
-        # 🔥 학습 패턴에 맞춘 강제 집중 판정
+        # 학습 패턴에 맞춘 강제 집중 판정
         adjusted_probs = probs[0].copy()
         
         # 화면 중앙 응시 중이라면 집중으로 강제 변경
@@ -343,7 +343,7 @@ class ConcentrationInference:
                 else:
                     face_box, is_detect = None, False
                 
-                # 🔧 수정된 face_status 결정 로직
+                # 수정된 face_status 결정 로직
                 if is_detect:
                     face_status = 'detect'
                 elif face_box is not None:
