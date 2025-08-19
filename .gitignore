@@ -43,23 +43,18 @@ logs/
 DataSet/
 frames/
 Labels/
-preprocess/frames/
-extracted_frames/
 runs/
-preprocess2/AIHub_frames/
 AIHub/
 DAiSEE/
-cnn_features/features/
-cnn_features/features_30/
 visualizations/
-EDA/eda_out/
-EDA/eda_outputs/
+
 # ▶ PyTorch & Checkpoints
 *.pt
 *.pth
 checkpoints/
 runs/
 log/
+
 # ▶ Environment & secrets
 *.env
 .env.*
@@ -73,4 +68,3 @@ myenv/
 *.bak
 *.swp
 *.~lock.*
-cnn_features/features/
