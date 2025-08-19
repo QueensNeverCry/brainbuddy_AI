@@ -32,18 +32,32 @@ BrainBuddyAI : Deep Learning Based Engagement Measuring Model (CNN → LSTM)
 	- UMAP-learn – 임베딩 차원 축소 및 시각화
 <br>
 
-## 📂 폴더 구조(예시)
-project/ <br>
-┣ data/ # 원본 및 가공 데이터 <br>
-┣ notebooks/ # EDA, 실험용 Jupyter Notebook <br>
-┣ src/ # 주요 Python 소스코드 <br>
-┃ ┣ preprocessing.py # 데이터 전처리 코드 <br>
-┃ ┣ modeling.py # 모델 정의/학습 코드 <br>
-┃ ┣ train.py # 학습 스크립트 <br>
-┃ ┗ evaluate.py # 평가 스크립트 <br>
-┣ results/ # 결과 (모델 성능, 그래프, 로그)  <br>
-┣ requirements.txt # 의존성 패키지  <br>
-┗ README.md # 리드미 <br>
+## 📂 폴더 구조
+```bash
+├── EDA
+│   ├── light_color_diff.py
+│   ├── t_SNE.py
+│   └── umap_features.py
+├── datasets
+│   ├── video_folder_dataset.py
+└── models
+│   ├── cnn_encoder.py
+│   ├── engagement_model.py
+│   └── face_crop.py
+└── preprocessing
+│   ├── pickle_labels/
+│   ├── check_label.py
+│   ├── extract_frames.py
+│   ├── extract_test_frames.py
+│   └── labeling.py
+└── test1/
+└── test2/
+└── test3/
+└── test4/
+└── real_time.py
+└── test.py
+└── train.py
+``` 
 <br>
 
 ## 0. 모델 구조
