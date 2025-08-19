@@ -19,7 +19,7 @@ class VideoFolderDataset(Dataset):
         self.data_list = []
         self.is_training = is_training
         
-        # ✅ 개선된 데이터 증강 (훈련/검증 구분)
+        # 개선된 데이터 증강 (훈련/검증 구분)
         if is_training:
             self.transform = transform or transforms.Compose([
                 transforms.Resize((256, 256)),  # 더 큰 해상도
@@ -59,7 +59,7 @@ class VideoFolderDataset(Dataset):
                 img_pil = Image.open(img_path).convert('RGB')
                 frames.append(self.transform(img_pil))
             except Exception as e:
-                print(f"⚠️ 이미지 로드 실패: {img_path}")
+                print(f"이미지 로드 실패: {img_path}")
                 continue
         
         while len(frames) < 30:
@@ -84,7 +84,7 @@ class CNNEncoder(nn.Module):
         self.features = mobilenet.features
         self.avgpool = nn.AdaptiveAvgPool2d((4, 4))
         
-        # ✅ 더 큰 FC 레이어와 개선된 정규화
+        # 더 큰 FC 레이어와 개선된 정규화
         self.fc = nn.Sequential(
             nn.Linear(1280 * 4 * 4, 2048),
             nn.BatchNorm1d(2048),  # BatchNorm 추가
@@ -135,7 +135,7 @@ class EngagementModelV2(nn.Module):
         # Positional Encoding
         self.pos_encoder = PositionalEncoding(d_model)
         
-        # ✅ 개선된 Transformer Encoder Layer
+        # 개선된 Transformer Encoder Layer
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=d_model,
             nhead=nhead,
@@ -147,11 +147,11 @@ class EngagementModelV2(nn.Module):
         )
         self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
         
-        # ✅ 개선된 Pooling (Max + Average 조합)
+        # 개선된 Pooling (Max + Average 조합)
         self.global_avg_pool = nn.AdaptiveAvgPool1d(1)
         self.global_max_pool = nn.AdaptiveMaxPool1d(1)
         
-        # ✅ 더 복잡한 최종 분류기
+        # 더 복잡한 최종 분류기
         self.fc = nn.Sequential(
             nn.Linear(d_model * 2 + fusion_feat_dim, 512),  # Max + Avg pooling
             nn.LayerNorm(512),
@@ -176,7 +176,7 @@ class EngagementModelV2(nn.Module):
         # Transformer Encoder
         transformer_out = self.transformer_encoder(x)  # (B, T, d_model)
         
-        # ✅ Max + Average Pooling 조합
+        # Max + Average Pooling 조합
         avg_pooled = self.global_avg_pool(transformer_out.transpose(1, 2)).squeeze(-1)  # (B, d_model)
         max_pooled = self.global_max_pool(transformer_out.transpose(1, 2)).squeeze(-1)  # (B, d_model)
         pooled = torch.cat([avg_pooled, max_pooled], dim=1)  # (B, d_model * 2)
@@ -319,14 +319,14 @@ def main():
     torch.backends.cudnn.benchmark = True
     torch.cuda.empty_cache()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"🔥 사용 디바이스: {device}")
-    print("🚀 **Version 2 - 개선된 모델 훈련 시작**")
+    print(f"사용 디바이스: {device}")
+    print(" **Version 2 - 개선된 모델 훈련 시작**")
     
     if torch.cuda.is_available():
-        print(f"📊 GPU: {torch.cuda.get_device_name(0)}")
-        print(f"📊 GPU 메모리: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f}GB")
+        print(f"GPU: {torch.cuda.get_device_name(0)}")
+        print(f"GPU 메모리: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f}GB")
     
-    # ✅ Version 2 전용 경로 설정 (기존 모델 보존)
+    # Version 2 전용 경로 설정 (기존 모델 보존)
     base_path = r"C:\Users\user\Desktop\brainbuddy_AI\preprocess2\pickle_labels"
     train_pkl_files = [
         f"{base_path}\\train\\20_01.pkl",
@@ -340,24 +340,24 @@ def main():
     train_data_list = load_data(train_pkl_files)
     val_data_list = load_data(val_pkl_files)
 
-    # ✅ 개선된 데이터셋 (훈련/검증 구분)
+    # 개선된 데이터셋 (훈련/검증 구분)
     train_dataset = VideoFolderDataset(train_data_list, is_training=True)   # 데이터 증강 적용
     val_dataset = VideoFolderDataset(val_data_list, is_training=False)      # 기본 변환만
 
     train_loader = DataLoader(train_dataset, batch_size=3, shuffle=True, num_workers=6, pin_memory=True)  # 배치 크기 조정
     val_loader = DataLoader(val_dataset, batch_size=3, shuffle=False, num_workers=6, pin_memory=True)
 
-    print("🔍 Training 데이터 배치 분포 확인:")
+    print("Training 데이터 배치 분포 확인:")
     check_batch_distribution(train_loader, num_batches=3)
     
-    print("🔍 Validation 데이터 배치 분포 확인:")
+    print("Validation 데이터 배치 분포 확인:")
     check_batch_distribution(val_loader, num_batches=3)
 
-    # ✅ Version 2 개선된 모델 초기화
+    # Version 2 개선된 모델 초기화
     cnn = CNNEncoder().to(device)
     model = EngagementModelV2(d_model=256, nhead=8, num_layers=4).to(device)  # 더 큰 모델
     
-    # ✅ 개선된 Loss & Optimizer
+    # 개선된 Loss & Optimizer
     pos_weight = torch.tensor([1.5]).to(device)  # 가중치 증가
     criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
     
@@ -376,7 +376,7 @@ def main():
     
     scaler = GradScaler()
     
-    # ✅ Version 2 전용 저장 경로
+    # Version 2 전용 저장 경로
     os.makedirs("./log/v2", exist_ok=True)
     best_model_path = "./log/v2/best_model_v2.pt"
     checkpoint_path = "./log/v2/last_checkpoint_v2.pt"
@@ -391,7 +391,7 @@ def main():
     # Resume 기능 (필요시 주석 해제)
     """
     if os.path.exists(checkpoint_path):
-        print(f"🔄 Resuming training from {checkpoint_path}")
+        print(f"Resuming training from {checkpoint_path}")
         ckpt = torch.load(checkpoint_path, map_location=device)
         cnn.load_state_dict(ckpt['cnn_state_dict'])
         model.load_state_dict(ckpt['model_state_dict'])
@@ -404,7 +404,7 @@ def main():
 
     num_epochs = 15  # 에포크 증가
     
-    print(f"📈 **하이퍼파라미터 설정**")
+    print(f" **하이퍼파라미터 설정**")
     print(f"   - 모델 크기: d_model={model.input_projection[0].out_features}, layers={4}")
     print(f"   - 학습률: {3e-6}, Weight decay: {1e-4}")
     print(f"   - 배치 크기: {3}, 에포크: {num_epochs}")
@@ -412,7 +412,7 @@ def main():
     print("=" * 60)
     
     for epoch in range(start_epoch, num_epochs):
-        # ✅ 현재 학습률 출력
+        # 현재 학습률 출력
         current_lr = scheduler.get_last_lr()[0]
         print(f"[Epoch {epoch+1}/{num_epochs}] Learning Rate: {current_lr:.2e}")
         
@@ -434,7 +434,7 @@ def main():
 
         evaluate_and_save_confusion_matrix(cnn, model, val_loader, device, epoch, confusion_save_dir)
 
-        # ✅ 베스트 모델 저장 (스케줄러 상태도 포함)
+        # 베스트 모델 저장 (스케줄러 상태도 포함)
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             torch.save({
@@ -451,7 +451,7 @@ def main():
                     'weight_decay': 1e-4
                 }
             }, best_model_path)
-            print(f"✅ Best model V2 saved at epoch {epoch+1} with val_loss {val_loss:.4f}")
+            print(f"Best model V2 saved at epoch {epoch+1} with val_loss {val_loss:.4f}")
             patience_counter = 0
         else:
             patience_counter += 1
@@ -470,21 +470,21 @@ def main():
             'best_val_loss': best_val_loss
         }, checkpoint_path)
         
-        # ✅ 스케줄러 스텝
+        # 스케줄러 스텝
         scheduler.step()
-        print(f"💾 Checkpoint saved at epoch {epoch+1}")
+        print(f"Checkpoint saved at epoch {epoch+1}")
 
     # 로그 저장
     log_df = pd.DataFrame(log_history)
     log_df.to_csv("./log/v2/train_log_v2.csv", index=False)
-    print("📄 Training log V2 saved to ./log/v2/train_log_v2.csv")
+    print("Training log V2 saved to ./log/v2/train_log_v2.csv")
 
     # 베스트 모델 로드
     checkpoint = torch.load(best_model_path, map_location=device)
     cnn.load_state_dict(checkpoint['cnn_state_dict'])
     model.load_state_dict(checkpoint['model_state_dict'])
-    print(f"🔁 Loaded best V2 model from epoch {checkpoint['epoch']+1} (val_loss={checkpoint['val_loss']:.4f})")
-    print("🎉 **Version 2 모델 훈련 완료!**")
+    print(f"Loaded best V2 model from epoch {checkpoint['epoch']+1} (val_loss={checkpoint['val_loss']:.4f})")
+    print(" **Version 2 모델 훈련 완료!**")
 
 if __name__ == '__main__':
     main()
