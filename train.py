@@ -19,7 +19,7 @@ from models.cnn_encoder import CNNEncoder
 from datasets.video_folder_dataset import VideoFolderDataset
 
 # ------------------ Training ------------------
-def train(model_cnn, model_top, loader, criterion, optimizer, device, accumulation_steps=32):
+def train(model_cnn, model_top, loader, criterion, optimizer, device, accumulation_steps=4):
     model_cnn.train()
     model_top.train()
     total_loss = 0.0
@@ -260,7 +260,7 @@ def main():
         print(f"Resumed from epoch {start_epoch} (best_val_loss={best_val_loss:.4f})")
 
     for epoch in range(start_epoch, num_epochs):
-        train_loss = train(cnn, model, train_loader, criterion, optimizer, device, accumulation_steps=32)
+        train_loss = train(cnn, model, train_loader, criterion, optimizer, device, accumulation_steps=4)
         val_loss = validate(cnn, model, val_loader, criterion, device)
         
         print(f"[Epoch {epoch+1}] Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}")
