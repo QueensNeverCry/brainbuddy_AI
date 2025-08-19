@@ -4,7 +4,7 @@ BrainBuddyAI : Deep Learning Based Engagement Measuring Model (CNN → LSTM)
 본 프로젝트에서는 **CNN → LSTM 구조**를 활용하여  
 영상 데이터를 기반으로 **집중도**를 측정하는 모델을 구현하고,  
 다양한 하이퍼파라미터 및 모델 구조 변경 실험을 통해 최적의 성능을 탐색하였습니다.
-<br>
+<br><br>
 
 ## 기술 스택
 - 언어 & 환경
@@ -67,22 +67,23 @@ BrainBuddyAI : Deep Learning Based Engagement Measuring Model (CNN → LSTM)
 
 ## 1. 데이터 
 ### 사용 데이터셋
-AIHub dataset : [학습태도 및 성향 관찰 데이터](https://www.aihub.or.kr/aihubdata/data/view.do?currMenu=115&topMenu=100&aihubDataSe=realm&dataSetSn=71715)
- <br>
+[학습태도 및 성향 관찰 데이터](https://www.aihub.or.kr/aihubdata/data/view.do?currMenu=115&topMenu=100&aihubDataSe=realm&dataSetSn=71715)
+<br><br>
+
 ### 전처리 및 라벨링
 `python -m preprocess2.ext` mediapipe로 facecrop 후 10초에 30frame씩 추출
 
 `python -m preprocess2.labeling` (폴더 경로, 라벨) 값을 .pkl 에 저장
-<br>
+<br><br>
 
 ## 2. 모델 학습
 `python train.py`
 - Epoch: 15
 - Early Stopping patience: 4
-- Batch size = 8
+- Batch size = 4
 - Optimizer: AdamW
 - Loss Function: BCEWithLogitsLoss + CosineAnnealingLR
-- Gradient Accumulation = 32 step
+- Gradient Accumulation = 8 step
 <br>
  
 ## 3. 모델 테스트 및 성능
