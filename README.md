@@ -1,7 +1,7 @@
 # 프로젝트 명
 BrainBuddyAI : Deep Learning Based Engagement Measuring Model (CNN → LSTM)
 
-본 프로젝트는 **CNN → LSTM 구조**를 활용하여  
+본 프로젝트에서는 **CNN → LSTM 구조**를 활용하여  
 영상 데이터를 기반으로 **집중도**를 측정하는 모델을 구현하고,  
 다양한 하이퍼파라미터 및 모델 구조 변경 실험을 통해 최적의 성능을 탐색하였습니다.
 <br>
