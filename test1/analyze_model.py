@@ -14,7 +14,7 @@ import joblib
 def check_file_exists(filepath):
     """파일 존재 확인"""
     if not os.path.exists(filepath):
-        print(f"❌ 파일을 찾을 수 없습니다: {filepath}")
+        print(f"파일을 찾을 수 없습니다: {filepath}")
         return False
     return True
 
@@ -23,10 +23,10 @@ def analyze_dataset_patterns():
     csv_path = "./processed_data/json_features_3class_dataset.csv"
     
     if not check_file_exists(csv_path):
-        print("💡 먼저 data_processor.py를 실행하여 데이터를 처리하세요.")
+        print("먼저 data_processor.py를 실행하여 데이터를 처리하세요.")
         return
     
-    print("=== 📊 학습 데이터 패턴 분석 ===")
+    print("=== 학습 데이터 패턴 분석 ===")
     print("=" * 60)
     
     # 데이터 로드
@@ -34,7 +34,7 @@ def analyze_dataset_patterns():
     print(f"총 샘플 수: {len(df)}개")
     
     # 클래스 분포
-    print(f"\n📈 클래스 분포:")
+    print(f"\n 클래스 분포:")
     class_names = {0: '비집중', 1: '주의산만', 2: '집중'}
     for class_id in [0, 1, 2]:
         count = len(df[df['label_3class'] == class_id])
@@ -54,15 +54,15 @@ def analyze_dataset_patterns():
         'gaze_direction_prob'    # 정면 응시 확률
     ]
     
-    print(f"\n🎯 핵심 특징별 클래스 패턴:")
+    print(f"\n 핵심 특징별 클래스 패턴:")
     print("=" * 60)
     
     for feature in key_features:
         if feature not in df.columns:
-            print(f"❌ {feature}: 컬럼이 존재하지 않음")
+            print(f"{feature}: 컬럼이 존재하지 않음")
             continue
             
-        print(f"\n📌 {feature}:")
+        print(f"\n {feature}:")
         print("-" * 40)
         
         for class_id in [0, 1, 2]:
@@ -79,14 +79,14 @@ def analyze_dataset_patterns():
                       f"범위=[{min_val:6.3f}, {max_val:6.3f}]")
     
     # 집중도 판단 임계값 추론
-    print(f"\n🔍 집중도 판단 임계값 추론:")
+    print(f"\n 집중도 판단 임계값 추론:")
     print("=" * 60)
     
     focused_data = df[df['label_3class'] == 2]  # 집중 클래스
     distracted_data = df[df['label_3class'] == 1]  # 주의산만 클래스
     unfocused_data = df[df['label_3class'] == 0]  # 비집중 클래스
     
-    print("📊 모델이 학습한 집중 상태의 특징:")
+    print("모델이 학습한 집중 상태의 특징:")
     print("-" * 40)
     
     concentration_thresholds = {}
@@ -120,10 +120,10 @@ def analyze_model_importance():
     model_path = "./xgboost_3class_concentration_classifier.pkl"
     
     if not check_file_exists(model_path):
-        print("💡 먼저 train_model.py를 실행하여 모델을 학습시키세요.")
+        print("먼저 train_model.py를 실행하여 모델을 학습시키세요.")
         return
     
-    print(f"\n=== 🤖 XGBoost 모델 특징 중요도 분석 ===")
+    print(f"\n=== XGBoost 모델 특징 중요도 분석 ===")
     print("=" * 60)
     
     try:
@@ -140,7 +140,7 @@ def analyze_model_importance():
             feature_importance = list(zip(feature_columns, importances))
             feature_importance.sort(key=lambda x: x[1], reverse=True)
             
-            print("📊 특징 중요도 순위 (상위 15개):")
+            print("특징 중요도 순위 (상위 15개):")
             print("-" * 50)
             for i, (feature, importance) in enumerate(feature_importance[:15]):
                 percentage = importance * 100
@@ -148,7 +148,7 @@ def analyze_model_importance():
                 print(f"{i+1:2d}. {feature:20s}: {importance:.4f} ({percentage:5.2f}%) {bar}")
             
             # 집중도 판단에 핵심적인 특징들 분석
-            print(f"\n🎯 집중도 판단 핵심 특징 해석:")
+            print(f"\n 집중도 판단 핵심 특징 해석:")
             print("-" * 50)
             
             interpretations = {
@@ -170,7 +170,7 @@ def analyze_model_importance():
             return feature_importance
             
     except Exception as e:
-        print(f"❌ 모델 분석 중 오류: {e}")
+        print(f"모델 분석 중 오류: {e}")
         return None
 
 def analyze_decision_boundaries():
@@ -181,7 +181,7 @@ def analyze_decision_boundaries():
     if not check_file_exists(csv_path) or not check_file_exists(model_path):
         return
     
-    print(f"\n=== 🎲 모델 결정 경계 분석 ===")
+    print(f"\n=== 모델 결정 경계 분석 ===")
     print("=" * 60)
     
     try:
@@ -204,7 +204,7 @@ def analyze_decision_boundaries():
         predictions = model.predict(X_scaled)
         
         # 클래스별 평균 확신도 분석
-        print("📊 클래스별 모델 확신도:")
+        print("클래스별 모델 확신도:")
         print("-" * 40)
         
         class_names = {0: '비집중', 1: '주의산만', 2: '집중'}
@@ -221,7 +221,7 @@ def analyze_decision_boundaries():
                 print(f"  {class_names[class_id]:>6}: 평균 확신도 {avg_confidence:.3f}")
         
         # 혼동되기 쉬운 경계 사례 분석
-        print(f"\n🤔 모델이 혼동하기 쉬운 경계 사례:")
+        print(f"\n 모델이 혼동하기 쉬운 경계 사례:")
         print("-" * 50)
         
         for i in range(len(probabilities)):
@@ -243,14 +243,14 @@ def analyze_decision_boundaries():
                     break
         
     except Exception as e:
-        print(f"❌ 결정 경계 분석 중 오류: {e}")
+        print(f"결정 경계 분석 중 오류: {e}")
 
 def generate_concentration_rules():
     """집중도 판단 규칙 생성"""
-    print(f"\n=== 📋 실시간 집중도 판단 규칙 ===")
+    print(f"\n=== 실시간 집중도 판단 규칙 ===")
     print("=" * 60)
     
-    print("🎯 모델이 학습한 집중 상태 판단 기준:")
+    print("모델이 학습한 집중 상태 판단 기준:")
     print("-" * 50)
     
     rules = [
@@ -268,7 +268,7 @@ def generate_concentration_rules():
     for rule in rules:
         print(f"  {rule}")
     
-    print(f"\n💡 실시간 개선 제안:")
+    print(f"\n 실시간 개선 제안:")
     print("-" * 30)
     print("  • 화면 중앙(±100픽셀) 응시 시 집중 보너스")
     print("  • 3초 이상 고정 응시 시 집중 확률 증가")  
@@ -277,12 +277,12 @@ def generate_concentration_rules():
 
 def main():
     """메인 실행 함수"""
-    print("🔍 XGBoost 집중도 모델 분석 도구")
+    print("XGBoost 집중도 모델 분석 도구")
     print("=" * 60)
     print("이 도구는 모델이 어떻게 집중도를 판단하는지 분석합니다.\n")
     
     while True:
-        print("📋 분석 메뉴:")
+        print("분석 메뉴:")
         print("1. 학습 데이터 패턴 분석")
         print("2. 모델 특징 중요도 분석") 
         print("3. 모델 결정 경계 분석")
@@ -301,17 +301,17 @@ def main():
         elif choice == '4':
             generate_concentration_rules()
         elif choice == '5':
-            print("\n🚀 전체 분석을 시작합니다...")
+            print("\n 전체 분석을 시작합니다...")
             thresholds = analyze_dataset_patterns()
             importance = analyze_model_importance()
             analyze_decision_boundaries()
             generate_concentration_rules()
-            print("\n✅ 전체 분석이 완료되었습니다!")
+            print("\n 전체 분석이 완료되었습니다!")
         elif choice == '0':
-            print("👋 분석 도구를 종료합니다.")
+            print("분석 도구를 종료합니다.")
             break
         else:
-            print("❌ 잘못된 선택입니다. 0-5 사이의 숫자를 입력하세요.")
+            print("잘못된 선택입니다. 0-5 사이의 숫자를 입력하세요.")
         
         input("\nEnter를 눌러 계속...")
         print("\n" + "="*60 + "\n")
