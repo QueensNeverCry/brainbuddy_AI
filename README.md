@@ -50,8 +50,8 @@ BrainBuddyAI : Deep Learning Based Engagement Measuring Model (CNN → LSTM)
 │   ├── extract_frames.py
 │   ├── extract_test_frames.py
 │   └── labeling.py
-└── test1
-└── test2
+└── test1/
+└── test2/
 └── test3/
 └── test4/
 └── real_time.py
