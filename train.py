@@ -203,13 +203,13 @@ def main():
     num_epochs = 15
 
     train_pkl_files = [
-        "C:/KSEB/brainbuddy_AI/preprocess2/pickle_labels/train/20_01.pkl",
-        "C:/KSEB/brainbuddy_AI/preprocess2/pickle_labels/train/20_03.pkl"
+        "C:/KSEB/brainbuddy_AI/preprocessing/pickle_labels/train/20_01.pkl",
+        "C:/KSEB/brainbuddy_AI/preprocessing/pickle_labels/train/20_03.pkl"
 
     ]
     val_pkl_files = [
-        "C:/KSEB/brainbuddy_AI/preprocess2/pickle_labels/valid/20_01.pkl",
-        "C:/KSEB/brainbuddy_AI/preprocess2/pickle_labels/valid/20_03.pkl"
+        "C:/KSEB/brainbuddy_AI/preprocessing/pickle_labels/valid/20_01.pkl",
+        "C:/KSEB/brainbuddy_AI/preprocessing/pickle_labels/valid/20_03.pkl"
     ]
 
     train_data_list = load_data(train_pkl_files)

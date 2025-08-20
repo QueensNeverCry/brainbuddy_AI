@@ -18,9 +18,9 @@ CKPT_PATH = "./log/train4/best_model/best_model_epoch_4.pt"  # <-- 실제 경로
 CAM_INDEX = 0                                       # 기본 웹캠
 TARGET_FPS = 3                                      # 3 FPS 고정
 IMG_SIZE = 224
-T_WINDOW = 30                                       # 학습과 동일 프레임 길이
+T_WINDOW = 15                                       # 학습과 동일 프레임 길이
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-STRIDE_SEC = 5
+STRIDE_SEC = 1
 STRIDE_FRAMES = max(1, int(round(TARGET_FPS * STRIDE_SEC)))  # 15
 
 # -------- 전처리 (학습과 동일) --------

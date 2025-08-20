@@ -36,12 +36,11 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     test_pkl_files = [
-        "C:/KSEB/brainbuddy_AI/preprocess2/pickle_labels/test/20_02.pkl",
-        "C:/KSEB/brainbuddy_AI/preprocess2/pickle_labels/test/20_04.pkl",
-        # "C:/KSEB/brainbuddy_AI/preprocess2/pickle_labels/test/another_data.pkl",
-        #"C:/KSEB/brainbuddy_AI/preprocess2/pickle_labels/test/another_data.pkl",
+        # "C:/KSEB/brainbuddy_AI/preprocessing/pickle_labels/test/20_02.pkl",
+        # "C:/KSEB/brainbuddy_AI/preprocessing/pickle_labels/test/20_04.pkl",
+        "C:/KSEB/brainbuddy_AI/preprocessing/pickle_labels/test/our_dataset.pkl",
     ]
-    best_model_path = "./log/train4/best_model/best_model_epoch_4.pt"  # 필요시 수정
+    best_model_path = "./log/train7/best_model/best_model_epoch_4.pt"  # 필요시 수정
     #best_model_path="log/train3_nolf/best_model/best_model_epoch_1.pt"
     
     # 데이터
